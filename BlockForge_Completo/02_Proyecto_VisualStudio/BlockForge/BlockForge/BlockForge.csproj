@@ -23,6 +23,7 @@
     <EmbeddedResource Include="Database\03_MigrarVersion3.sql" />
     <EmbeddedResource Include="Database\04_MigrarVersion4.sql" />
     <EmbeddedResource Include="Database\05_MigrarVersion5.sql" />
+    <EmbeddedResource Include="Database\06_MigrarVersion6.sql" />
   </ItemGroup>
 
 </Project>

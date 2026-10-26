@@ -35,6 +35,14 @@ y fabricación; y **internet fácil con un túnel de Cloudflare** (sin abrir pue
 |------------|---------------|---------------|
 | `admin`    | `Admin2026`   | Administrador |
 | `jugador1` | `Jugador2026` | Jugador       |
+| `Ruby`     | `Ruby2026`    | Jugador       |
+| `Madai`    | `Madai2026`   | Jugador       |
+| `Danilo`   | `Danilo2026`  | Jugador       |
+
+Cada usuario puede cambiar su **nombre** y su **contraseña** desde el menú principal, con el botón
+**Cambiar nombre o contraseña** (pide la contraseña actual). El nombre es con el que se inicia sesión y el que
+ven los demás en el multijugador: de 4 a 20 letras o números, sin espacios y sin repetir el de otra cuenta.
+Conviene que cada uno cambie la contraseña de prueba por una propia.
 
 ## Controles del juego
 
@@ -247,7 +255,8 @@ BlockForge/
         ├── 02_MigrarVersion2.sql  Migración desde la versión 1 (2D)
         ├── 03_MigrarVersion3.sql  Skins de los usuarios
         ├── 04_MigrarVersion4.sql  Bloques nuevos, comida, hora del día, vida y hambre
-        └── 05_MigrarVersion5.sql  Hierro, diamante, espadas y más bloques
+        ├── 05_MigrarVersion5.sql  Hierro, diamante, espadas y más bloques
+        └── 06_MigrarVersion6.sql  Cuentas de Ruby, Madai y Danilo
 ```
 
 ### Cambios en la base de datos (versión 5)

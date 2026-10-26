@@ -32,6 +32,7 @@
             this.lblUsuario = new System.Windows.Forms.Label();
             this.btnCerrarSesion = new System.Windows.Forms.Button();
             this.btnSkin = new System.Windows.Forms.Button();
+            this.btnCuenta = new System.Windows.Forms.Button();
             this.lblJugar = new System.Windows.Forms.Label();
             this.btnNuevoMundo = new BlockForge.Controls.TarjetaMenu();
             this.btnCargarMundo = new BlockForge.Controls.TarjetaMenu();
@@ -52,6 +53,7 @@
             //
             this.pnlEncabezado.Controls.Add(this.lblUsuario);
             this.pnlEncabezado.Controls.Add(this.btnSkin);
+            this.pnlEncabezado.Controls.Add(this.btnCuenta);
             this.pnlEncabezado.Controls.Add(this.btnCerrarSesion);
             this.pnlEncabezado.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(92)))), ((int)(((byte)(152)))), ((int)(((byte)(240)))));
             this.pnlEncabezado.Dock = System.Windows.Forms.DockStyle.Top;
@@ -110,6 +112,24 @@
             this.btnSkin.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.btnSkin.UseVisualStyleBackColor = false;
             this.btnSkin.Click += new System.EventHandler(this.btnSkin_Click);
+            //
+            // btnCuenta
+            //
+            this.btnCuenta.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.btnCuenta.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(43)))), ((int)(((byte)(45)))), ((int)(((byte)(50)))));
+            this.btnCuenta.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btnCuenta.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(205)))), ((int)(((byte)(215)))));
+            this.btnCuenta.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(62)))), ((int)(((byte)(65)))), ((int)(((byte)(72)))));
+            this.btnCuenta.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnCuenta.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.btnCuenta.ForeColor = System.Drawing.Color.White;
+            this.btnCuenta.Location = new System.Drawing.Point(552, 60);
+            this.btnCuenta.Name = "btnCuenta";
+            this.btnCuenta.Size = new System.Drawing.Size(252, 30);
+            this.btnCuenta.TabIndex = 8;
+            this.btnCuenta.Text = "Cambiar nombre o contraseña";
+            this.btnCuenta.UseVisualStyleBackColor = false;
+            this.btnCuenta.Click += new System.EventHandler(this.btnCuenta_Click);
             //
             // lblJugar
             //
@@ -276,6 +296,7 @@
         private System.Windows.Forms.Label lblUsuario;
         private System.Windows.Forms.Button btnCerrarSesion;
         private System.Windows.Forms.Button btnSkin;
+        private System.Windows.Forms.Button btnCuenta;
         private System.Windows.Forms.Label lblJugar;
         private BlockForge.Controls.TarjetaMenu btnNuevoMundo;
         private BlockForge.Controls.TarjetaMenu btnCargarMundo;

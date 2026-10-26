@@ -22,8 +22,7 @@ namespace BlockForge.Forms
 
         private void FrmMenuPrincipal_Load(object sender, EventArgs e)
         {
-            Usuario usuario = Sesion.UsuarioActual;
-            lblUsuario.Text = usuario.NombreUsuario + Environment.NewLine + "Rol: " + usuario.Rol;
+            MostrarUsuario();
             ActualizarAvatar();
 
             bool admin = Sesion.EsAdministrador;
@@ -37,6 +36,20 @@ namespace BlockForge.Forms
                 ClientSize = new System.Drawing.Size(ClientSize.Width, btnUnirse.Bottom + 26 + stsEstado.Height);
             }
             ActualizarEstado();
+        }
+
+        private void MostrarUsuario()
+        {
+            Usuario usuario = Sesion.UsuarioActual;
+            lblUsuario.Text = usuario.NombreUsuario + Environment.NewLine + "Rol: " + usuario.Rol;
+        }
+
+        private void btnCuenta_Click(object sender, EventArgs e)
+        {
+            using (FrmCuenta dialogo = new FrmCuenta())
+            {
+                if (dialogo.ShowDialog(this) == DialogResult.OK) MostrarUsuario();
+            }
         }
 
         /// <summary>La cara de la skin del usuario como ícono del botón "Mi skin".</summary>
@@ -72,6 +85,7 @@ namespace BlockForge.Forms
             Dibujo.Paisaje(e.Graphics, pnlEncabezado.ClientRectangle, k);
             System.Drawing.Rectangle zonaUsuario = System.Drawing.Rectangle.Union(lblUsuario.Bounds, btnCerrarSesion.Bounds);
             zonaUsuario = System.Drawing.Rectangle.Union(zonaUsuario, btnSkin.Bounds);
+            zonaUsuario = System.Drawing.Rectangle.Union(zonaUsuario, btnCuenta.Bounds);
             zonaUsuario.Inflate((int)(8 * k), (int)(6 * k));
             using (System.Drawing.SolidBrush fondo = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(120, 20, 22, 26)))
             {

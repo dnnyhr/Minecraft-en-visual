@@ -31,6 +31,47 @@ namespace BlockForge.Helpers
             return true;
         }
 
+        private static readonly Regex PatronUsuario = new Regex(@"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_.\-]+$");
+
+        /// <summary>
+        /// Nombre de usuario: de 4 a 20 caracteres (es también el nombre en el multijugador),
+        /// letras, números, puntos, guiones y guiones bajos, sin espacios.
+        /// </summary>
+        public static bool NombreUsuarioValido(string nombre, out string mensaje)
+        {
+            nombre = (nombre ?? string.Empty).Trim();
+            if (nombre.Length < 4 || nombre.Length > 20)
+            {
+                mensaje = "El nombre de usuario debe tener de 4 a 20 caracteres.";
+                return false;
+            }
+            if (!PatronUsuario.IsMatch(nombre))
+            {
+                mensaje = "Use solo letras, números, puntos y guiones, sin espacios.";
+                return false;
+            }
+            mensaje = string.Empty;
+            return true;
+        }
+
+        /// <summary>Contraseña nueva: de 6 a 30 caracteres, con al menos una letra y un número.</summary>
+        public static bool ContrasenaValida(string contrasena, out string mensaje)
+        {
+            contrasena = contrasena ?? string.Empty;
+            if (contrasena.Length < 6 || contrasena.Length > 30)
+            {
+                mensaje = "La contraseña debe tener de 6 a 30 caracteres.";
+                return false;
+            }
+            if (!Regex.IsMatch(contrasena, @"\p{L}") || !Regex.IsMatch(contrasena, @"\d"))
+            {
+                mensaje = "La contraseña debe tener al menos una letra y un número.";
+                return false;
+            }
+            mensaje = string.Empty;
+            return true;
+        }
+
         /// <summary>RN-05: rangos de dimensiones del mundo.</summary>
         public static bool DimensionesValidas(int ancho, int largo, int alto)
         {

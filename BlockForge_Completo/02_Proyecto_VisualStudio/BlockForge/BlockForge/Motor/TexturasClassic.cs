@@ -69,12 +69,20 @@ namespace BlockForge.Motor
         /// <summary>Copia los tiles de terrain.png sobre el atlas. Devuelve true si se aplicaron.</summary>
         public static bool Aplicar(int[] pixeles, int tamanoAtlas, int tile)
         {
-            if (!Preferidas || !Disponibles) return false;
+            if (!Preferidas || !Disponibles)
+            {
+                Registrar(!Disponibles ? "No hay terrain.png en " + Ruta + ": se usan las texturas propias." : "El jugador eligió las texturas propias.");
+                return false;
+            }
             try
             {
                 using (Bitmap origen = new Bitmap(Ruta))
                 {
-                    if (origen.Width < 16 || origen.Width % 16 != 0 || origen.Height < origen.Width) return false;
+                    if (origen.Width < 16 || origen.Width % 16 != 0 || origen.Height < origen.Width)
+                    {
+                        Registrar("terrain.png tiene un tamaño inválido (" + origen.Width + "×" + origen.Height + ").");
+                        return false;
+                    }
                     int t = origen.Width / 16;
                     int porFila = tamanoAtlas / tile;
                     foreach (KeyValuePair<int, int> par in Mapa)
@@ -92,11 +100,27 @@ namespace BlockForge.Motor
                         }
                     }
                 }
+                Registrar("Texturas de Minecraft Classic aplicadas (" + Mapa.Count + " tiles).");
                 return true;
+            }
+            catch (Exception ex)
+            {
+                Registrar("No se pudo leer terrain.png: " + ex); // archivo dañado: se usan las texturas propias
+                return false;
+            }
+        }
+
+        /// <summary>Deja constancia de qué texturas se usaron (texturas.log, para diagnosticar).</summary>
+        private static void Registrar(string texto)
+        {
+            try
+            {
+                Directory.CreateDirectory(Carpeta);
+                File.AppendAllText(Path.Combine(Carpeta, "texturas.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + texto + Environment.NewLine);
             }
             catch (Exception)
             {
-                return false; // archivo dañado: se usan las texturas propias
+                // El registro es solo informativo.
             }
         }
 
