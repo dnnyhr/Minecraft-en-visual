@@ -50,7 +50,8 @@ namespace BlockForge.Data
         public Mundo ObtenerPorId(int idMundo)
         {
             const string sql = @"SELECT IdMundo, IdUsuario, Nombre, Ancho, Alto, Largo, Semilla, ConLagos, FechaCreacion,
-                                        JugadorX, JugadorY, JugadorZ, JugadorGiro, JugadorInclinacion
+                                        JugadorX, JugadorY, JugadorZ, JugadorGiro, JugadorInclinacion,
+                                        HoraDia, JugadorVida, JugadorHambre
                                  FROM Mundo WHERE IdMundo = @id";
             using (SqlConnection conexion = Conexion.Abrir())
             using (SqlCommand comando = new SqlCommand(sql, conexion))
@@ -76,6 +77,9 @@ namespace BlockForge.Data
                         mundo.JugadorGiro = lector.IsDBNull(12) ? 0f : lector.GetFloat(12);
                         mundo.JugadorInclinacion = lector.IsDBNull(13) ? 0f : lector.GetFloat(13);
                     }
+                    mundo.HoraDia = lector.IsDBNull(14) ? 0.05f : lector.GetFloat(14);
+                    if (!lector.IsDBNull(15)) mundo.JugadorVida = lector.GetFloat(15);
+                    if (!lector.IsDBNull(16)) mundo.JugadorHambre = lector.GetFloat(16);
                     return mundo;
                 }
             }

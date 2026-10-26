@@ -10,6 +10,8 @@
 - Inicio de sesión con roles, mundos guardados en la base de datos, inventario y administración de partidas.
 - **Multijugador** en red local o por internet: chat, jugadores visibles, contraseña de partida y `/expulsar`.
 - **Skins de Minecraft**: por nombre de cuenta (servidores públicos de Mojang) o desde un archivo PNG.
+- **Supervivencia**: día y noche, vida y hambre, comida, mobs (cerdos, vacas, ovejas, gallinas, zombis, arañas y creepers), cuevas con lava, plantas, brotes, fabricación y más de 40 bloques.
+- **Internet fácil**: túnel de Cloudflare integrado (una dirección https para compartir, sin abrir puertos); también funciona con ngrok.
 
 ## Cómo ejecutarlo
 

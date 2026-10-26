@@ -10,7 +10,7 @@
     <AssemblyName>BlockForge</AssemblyName>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <Product>BlockForge</Product>
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +21,7 @@
     <EmbeddedResource Include="Database\01_CrearBaseDatos.sql" />
     <EmbeddedResource Include="Database\02_MigrarVersion2.sql" />
     <EmbeddedResource Include="Database\03_MigrarVersion3.sql" />
+    <EmbeddedResource Include="Database\04_MigrarVersion4.sql" />
   </ItemGroup>
 
 </Project>

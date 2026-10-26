@@ -68,6 +68,8 @@ namespace BlockForge.Red
         public int MaximoJugadores { get; set; }
         /// <summary>Intentar abrir el puerto en el router (UPnP) para jugar por internet.</summary>
         public bool Internet { get; set; }
+        /// <summary>Abrir un túnel rápido de Cloudflare (dirección https sin tocar el router).</summary>
+        public bool Tunel { get; set; }
 
         public OpcionesPartida()
         {
@@ -122,6 +124,16 @@ namespace BlockForge.Red
         public event Action<string, bool> ChatRecibido;
         /// <summary>Solo invitado: se perdió la conexión con el anfitrión.</summary>
         public event Action ConexionPerdida;
+        /// <summary>Solo invitado: estado de los mobs y hora del día (datos para GestorMobs.AplicarEstado).</summary>
+        internal event Action<byte[]> MobsRecibidos;
+        /// <summary>Solo anfitrión: un invitado golpeó un mob (id del jugador, posición del jugador, id del mob, daño).</summary>
+        internal event Action<int, Vec3, int, float> MobAtacado;
+        /// <summary>Solo invitado: el jugador local recibe daño (cantidad, origen).</summary>
+        internal event Action<float, Vec3> DanoRecibido;
+        /// <summary>Solo invitado: explotó un creeper (centro, radio).</summary>
+        internal event Action<Vec3, float> ExplosionRecibida;
+        /// <summary>Solo invitado: objetos ganados (nombre del tipo, cantidad).</summary>
+        internal event Action<string, int> RecompensaRecibida;
 
         private PartidaRed()
         {
@@ -187,13 +199,59 @@ namespace BlockForge.Red
                 while (!cerrando)
                 {
                     TcpClient tcp = escucha.AcceptTcpClient();
-                    Conexion c = new Conexion(tcp) { LimiteMensaje = LimiteMensajeCliente };
-                    c.Iniciar(cola);
+                    ThreadPool.QueueUserWorkItem(_ => Recibir(tcp));
                 }
             }
             catch (Exception)
             {
                 // El servidor se detuvo.
+            }
+        }
+
+        /// <summary>
+        /// Reconoce qué llegó por el puerto: un jugador de BlockForge directo, o un WebSocket que viene
+        /// por un túnel (Cloudflare o ngrok reenvían el tráfico HTTPS a este mismo puerto).
+        /// </summary>
+        private void Recibir(TcpClient tcp)
+        {
+            try
+            {
+                tcp.NoDelay = true;
+                NetworkStream ns = tcp.GetStream();
+                ns.ReadTimeout = 15000;
+                byte[] inicio = new byte[4];
+                int leidos = 0;
+                while (leidos < 4)
+                {
+                    int r = ns.Read(inicio, leidos, 4 - leidos);
+                    if (r <= 0) throw new IOException();
+                    leidos += r;
+                }
+                Conexion c;
+                if (System.Text.Encoding.ASCII.GetString(inicio) == "GET ")
+                {
+                    System.Net.WebSockets.WebSocket ws = ServidorWebSocket.Aceptar(ns, inicio);
+                    if (ws == null)
+                    {
+                        tcp.Close();
+                        return;
+                    }
+                    ns.ReadTimeout = Timeout.Infinite;
+                    c = new Conexion(new FlujoWebSocket(ws), tcp.Close, "túnel");
+                }
+                else
+                {
+                    ns.ReadTimeout = Timeout.Infinite;
+                    string origen = tcp.Client.RemoteEndPoint != null ? tcp.Client.RemoteEndPoint.ToString() : "?";
+                    c = new Conexion(new FlujoConPrefijo(inicio, ns), tcp.Close, origen);
+                }
+                c.LimiteMensaje = LimiteMensajeCliente;
+                if (cerrando) c.Cerrar();
+                else c.Iniciar(cola);
+            }
+            catch (Exception)
+            {
+                tcp.Close();
             }
         }
 
@@ -226,27 +284,8 @@ namespace BlockForge.Red
         /// </summary>
         public static PartidaRed Unirse(string servidor, int puerto, string nombreJugador, string clave, Skin skin, int espera, out Mundo mundoRecibido)
         {
-            TcpClient tcp = new TcpClient();
-            try
-            {
-                if (!tcp.ConnectAsync(servidor, puerto).Wait(espera) || !tcp.Connected)
-                {
-                    throw new IOException("El anfitrión no respondió. Verifique la dirección y el puerto, y que el anfitrión tenga el puerto abierto.");
-                }
-            }
-            catch (AggregateException ex)
-            {
-                tcp.Close();
-                throw new IOException("No fue posible conectarse a " + servidor + ":" + puerto + ". " + ex.InnerException.Message);
-            }
-            catch
-            {
-                tcp.Close();
-                throw;
-            }
-
-            tcp.ReceiveTimeout = Math.Max(espera, 20000); // por internet el mundo puede tardar en llegar
-            Conexion c = new Conexion(tcp);
+            Conexion c = servidor.Contains("://") ? ConectarTunel(servidor, espera) : ConectarTcp(servidor, puerto, espera);
+            c.TiempoLectura = Math.Max(espera, 30000); // por internet el mundo puede tardar en llegar
             try
             {
                 byte[] png = SkinSegura(skin);
@@ -289,7 +328,7 @@ namespace BlockForge.Red
                     mundoRecibido.CargarCeldas(celdas);
                 }
                 p.mundo = mundoRecibido;
-                tcp.ReceiveTimeout = 0;
+                c.TiempoLectura = 0;
                 c.Iniciar(p.cola);
                 return p;
             }
@@ -303,6 +342,62 @@ namespace BlockForge.Red
                 c.Cerrar();
                 throw;
             }
+        }
+
+        private static Conexion ConectarTcp(string servidor, int puerto, int espera)
+        {
+            TcpClient tcp = new TcpClient();
+            try
+            {
+                if (!tcp.ConnectAsync(servidor, puerto).Wait(espera) || !tcp.Connected)
+                {
+                    throw new IOException("El anfitrión no respondió. Verifique la dirección y el puerto, y que el anfitrión tenga el puerto abierto.");
+                }
+            }
+            catch (AggregateException ex)
+            {
+                tcp.Close();
+                throw new IOException("No fue posible conectarse a " + servidor + ":" + puerto + ". " + ex.InnerException.Message);
+            }
+            catch
+            {
+                tcp.Close();
+                throw;
+            }
+            return new Conexion(tcp);
+        }
+
+        /// <summary>Se conecta a una invitación https://... (túnel de Cloudflare o ngrok) mediante WebSocket.</summary>
+        private static Conexion ConectarTunel(string url, int espera)
+        {
+            string direccion = url.Trim();
+            if (direccion.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) direccion = "wss://" + direccion.Substring(8);
+            else if (direccion.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) direccion = "ws://" + direccion.Substring(7);
+            Uri uri;
+            if (!Uri.TryCreate(direccion, UriKind.Absolute, out uri)) throw new IOException("La dirección «" + url + "» no es válida.");
+
+            System.Net.WebSockets.ClientWebSocket ws = new System.Net.WebSockets.ClientWebSocket();
+            ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+            ws.Options.SetRequestHeader("ngrok-skip-browser-warning", "1");
+            try
+            {
+                using (CancellationTokenSource cts = new CancellationTokenSource(espera))
+                {
+                    ws.ConnectAsync(uri, cts.Token).GetAwaiter().GetResult();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                ws.Dispose();
+                throw new IOException("El túnel " + uri.Host + " no respondió. Verifique que el anfitrión siga con la partida abierta.");
+            }
+            catch (Exception ex)
+            {
+                ws.Dispose();
+                throw new IOException("No fue posible conectarse a " + uri.Host + ". " +
+                                      "Puede que el anfitrión haya cerrado la partida (cada vez que la abre, la dirección del túnel cambia). " + ex.Message);
+            }
+            return new Conexion(new FlujoWebSocket(ws), () => { }, uri.Host);
         }
 
         // ------------------------------------------------------------------ procesamiento (hilo del juego)
@@ -389,6 +484,14 @@ namespace BlockForge.Red
                             string linea = c.Nombre + ": " + texto;
                             Difundir(TipoMensaje.Chat, Protocolo.Armar(w => { w.Write(linea); w.Write(false); }), null);
                             if (ChatRecibido != null) ChatRecibido(linea, false);
+                            break;
+                        }
+                    case TipoMensaje.AtacarMob:
+                        {
+                            int idMob = r.ReadInt32();
+                            float dano = Math.Max(0f, Math.Min(8f, r.ReadSingle()));
+                            JugadorRemoto j;
+                            if (MobAtacado != null && jugadores.TryGetValue(c.Id, out j)) MobAtacado(c.Id, j.Destino, idMob, dano);
                             break;
                         }
                 }
@@ -536,6 +639,30 @@ namespace BlockForge.Red
                     case TipoMensaje.Rechazo:
                         MotivoDesconexion = r.ReadString();
                         break;
+                    case TipoMensaje.Mobs:
+                        if (MobsRecibidos != null) MobsRecibidos(m.Datos);
+                        break;
+                    case TipoMensaje.Dano:
+                        {
+                            float dano = r.ReadSingle();
+                            Vec3 desde = new Vec3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                            if (DanoRecibido != null) DanoRecibido(dano, desde);
+                            break;
+                        }
+                    case TipoMensaje.Explosion:
+                        {
+                            Vec3 centro = new Vec3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                            float radio = r.ReadSingle();
+                            if (ExplosionRecibida != null) ExplosionRecibida(centro, radio);
+                            break;
+                        }
+                    case TipoMensaje.Recompensa:
+                        {
+                            string nombre = r.ReadString();
+                            int cantidad = r.ReadInt32();
+                            if (RecompensaRecibida != null) RecompensaRecibida(nombre, Math.Min(cantidad, 16));
+                            break;
+                        }
                 }
             }
         }
@@ -567,6 +694,40 @@ namespace BlockForge.Red
             byte[] datos = DatosPosicion(IdLocal, x, y, z, giro, inclinacion);
             if (EsAnfitrion) Difundir(TipoMensaje.Posicion, datos, null);
             else if (anfitrion != null) anfitrion.Enviar(TipoMensaje.Posicion, datos);
+        }
+
+        /// <summary>Anfitrión: estado de los mobs y la hora a todos los invitados.</summary>
+        internal void EnviarMobs(byte[] datos)
+        {
+            if (EsAnfitrion) Difundir(TipoMensaje.Mobs, datos, null);
+        }
+
+        /// <summary>Invitado: avisa al anfitrión que golpeó un mob.</summary>
+        internal void AtacarMob(int idMob, float dano)
+        {
+            if (!EsAnfitrion && anfitrion != null) anfitrion.Enviar(TipoMensaje.AtacarMob, Protocolo.Armar(w => { w.Write(idMob); w.Write(dano); }));
+        }
+
+        /// <summary>Anfitrión: un invitado recibe daño.</summary>
+        internal void EnviarDano(int jugador, float dano, Vec3 desde)
+        {
+            if (!EsAnfitrion) return;
+            Conexion c = clientes.FirstOrDefault(x => x.Aceptada && x.Id == jugador);
+            if (c != null) c.Enviar(TipoMensaje.Dano, Protocolo.Armar(w => { w.Write(dano); w.Write(desde.X); w.Write(desde.Y); w.Write(desde.Z); }));
+        }
+
+        /// <summary>Anfitrión: efectos de una explosión (los bloques llegan como cambios normales).</summary>
+        internal void EnviarExplosion(Vec3 centro, float radio)
+        {
+            if (EsAnfitrion) Difundir(TipoMensaje.Explosion, Protocolo.Armar(w => { w.Write(centro.X); w.Write(centro.Y); w.Write(centro.Z); w.Write(radio); }), null);
+        }
+
+        /// <summary>Anfitrión: objetos para el invitado que mató un mob.</summary>
+        internal void EnviarRecompensa(int jugador, string tipo, int cantidad)
+        {
+            if (!EsAnfitrion) return;
+            Conexion c = clientes.FirstOrDefault(x => x.Aceptada && x.Id == jugador);
+            if (c != null) c.Enviar(TipoMensaje.Recompensa, Protocolo.Armar(w => { w.Write(tipo); w.Write(cantidad); }));
         }
 
         public void EnviarChat(string texto)

@@ -34,7 +34,8 @@ namespace BlockForge.Controls
         private readonly TextoGL texto = new TextoGL();
         private readonly Particulas particulas = new Particulas();
         private readonly Frustum frustum = new Frustum();
-        private readonly List<TipoBloque> ranuras = new List<TipoBloque>();
+        /// <summary>Barra de 9 espacios; cada uno guarda un tipo del inventario (o null).</summary>
+        private readonly TipoBloque[] barra = new TipoBloque[9];
         private int ranuraActiva;
         private Impacto objetivo;
 
@@ -45,6 +46,8 @@ namespace BlockForge.Controls
         private bool sincronizacionVertical;
 
         private bool capturado, cursorOculto;
+        private bool rawInput, rawRecibido;
+        private int rawX, rawY;
         private bool botonIzquierdo, botonDerecho;
         private float repeticionIzquierdo, repeticionDerecho;
         private float balanceo, tiempoNombre, tiempoNubes;
@@ -85,7 +88,7 @@ namespace BlockForge.Controls
         [Browsable(false)]
         public TipoBloque TipoActivo
         {
-            get { return ranuraActiva >= 0 && ranuraActiva < ranuras.Count ? ranuras[ranuraActiva] : null; }
+            get { return barra[ranuraActiva]; }
         }
 
         [Browsable(false)]
@@ -128,12 +131,7 @@ namespace BlockForge.Controls
             cfg = configuracion ?? Configuracion.PorDefecto();
             Atlas.Preparar(CatalogoBloques.Tipos);
 
-            ranuras.Clear();
-            foreach (TipoBloque tipo in CatalogoBloques.Tipos)
-            {
-                if (tipo.EsRecolectable && ranuras.Count < 9) ranuras.Add(tipo);
-            }
-            ranuraActiva = 0;
+            IniciarJuego();
 
             if (mundo.JugadorX.HasValue && mundo.EstaDentro((int)mundo.JugadorX.Value, 0, (int)mundo.JugadorZ.Value))
             {
@@ -148,7 +146,7 @@ namespace BlockForge.Controls
             }
 
             if (listo) CrearRender();
-            Avisar("Haz clic para jugar. Rompe bloques con clic izquierdo para recolectarlos.", Color.White, 7f);
+            Avisar("Haz clic para jugar. Rompe bloques, fabrica con E y come para recuperar vida.", Color.White, 7f);
         }
 
         /// <summary>Copia la posición del jugador al mundo para guardarla con la partida.</summary>
@@ -160,6 +158,9 @@ namespace BlockForge.Controls
             mundo.JugadorZ = jugador.Posicion.Z;
             mundo.JugadorGiro = jugador.Giro;
             mundo.JugadorInclinacion = jugador.Inclinacion;
+            mundo.HoraDia = ciclo.Hora;
+            mundo.JugadorVida = vida.Muerto ? Supervivencia.VidaMaxima : vida.Vida;
+            mundo.JugadorHambre = vida.Hambre;
         }
 
         /// <summary>Coloca al jugador sobre el terreno cerca del centro del mapa.</summary>
@@ -217,6 +218,23 @@ namespace BlockForge.Controls
             {
                 errorInicio = ex.Message;
             }
+            Win32.RAWINPUTDEVICE[] mouse = { new Win32.RAWINPUTDEVICE { usUsagePage = 1, usUsage = 2, dwFlags = 0, hwndTarget = Handle } };
+            rawInput = Win32.RegisterRawInputDevices(mouse, 1, (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(Win32.RAWINPUTDEVICE)));
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Win32.WM_INPUT && capturado)
+            {
+                int dx, dy;
+                if (Win32.LeerMovimientoRaw(m.LParam, out dx, out dy))
+                {
+                    rawX += dx;
+                    rawY += dy;
+                    rawRecibido = true;
+                }
+            }
+            base.WndProc(ref m);
         }
 
         private void IniciarOpenGL()
@@ -265,7 +283,7 @@ namespace BlockForge.Controls
         private void CrearRender()
         {
             if (render != null) render.Dispose();
-            render = new RenderMundo(mundo);
+            render = new RenderMundo(mundo, ciclo.Luz);
             render.ReconstruirPendientes(int.MaxValue);
         }
 
@@ -278,6 +296,7 @@ namespace BlockForge.Controls
                 GL.wglMakeCurrent(hdc, contexto);
                 if (render != null) render.Dispose();
                 LiberarSkins();
+                mobs.Liberar();
                 texto.Dispose();
                 Atlas.Liberar();
                 GL.wglMakeCurrent(IntPtr.Zero, IntPtr.Zero);
@@ -345,13 +364,20 @@ namespace BlockForge.Controls
             bool activo = capturado && formulario != null && formulario.ContainsFocus && Form.ActiveForm == formulario;
             if (capturado && !activo) LiberarMouse();
 
-            bool controlando = capturado && !chatAbierto;
+            bool controlando = capturado && !chatAbierto && !vida.Muerto;
             if (capturado)
             {
                 Point centro = PointToScreen(new Point(ClientSize.Width / 2, ClientSize.Height / 2));
                 Point actual = Cursor.Position;
                 float factor = 0.0006f + cfg.Sensibilidad * 0.00045f;
-                if (actual != centro)
+                if (rawInput && rawRecibido)
+                {
+                    // Raw Input: los conteos del mouse llegan sin aceleración; el cursor solo se mantiene en el centro.
+                    if (controlando) jugador.Girar(rawX * factor * 0.75f, rawY * factor * 0.75f);
+                    rawX = rawY = 0;
+                    if (actual != centro) Cursor.Position = centro;
+                }
+                else if (actual != centro)
                 {
                     if (controlando) jugador.Girar((actual.X - centro.X) * factor, (actual.Y - centro.Y) * factor);
                     Cursor.Position = centro;
@@ -369,10 +395,19 @@ namespace BlockForge.Controls
                 // Shift corre al caminar y baja al volar (Ctrl se reserva para Ctrl+S y Ctrl+I).
                 bool shift = Win32.TeclaPresionada(Keys.ShiftKey);
                 entrada.Bajar = shift && jugador.Volando;
-                entrada.Correr = shift && !jugador.Volando;
+                // Correr necesita comida: con 3 muslos o menos no se puede.
+                entrada.Correr = shift && !jugador.Volando && vida.PuedeCorrer && entrada.Adelante;
             }
+            Vec3 antes = jugador.Posicion;
+            bool estabaEnSuelo = jugador.EnSuelo;
             jugador.Actualizar(dt, entrada, this);
-            if (jugador.Posicion.Y < -10) Reaparecer();
+            if (jugador.Posicion.Y < -10)
+            {
+                if (vida.Muerto) Reaparecer();
+                else vida.Danar(100f, "al caer al vacío");
+            }
+            Vec3 movido = jugador.Posicion - antes;
+            ActualizarJuego(dt, entrada, (float)Math.Sqrt(movido.X * movido.X + movido.Z * movido.Z), estabaEnSuelo && !jugador.EnSuelo && jugador.Velocidad.Y > 0);
             ActualizarRed(dt);
             ActualizarInterfaz(dt);
 
@@ -383,14 +418,15 @@ namespace BlockForge.Controls
                 repeticionIzquierdo -= dt;
                 if (repeticionIzquierdo <= 0) { Romper(); repeticionIzquierdo = 0.22f; }
             }
-            if (capturado && botonDerecho)
+            if (capturado && botonDerecho && !EsComidaActiva)
             {
                 repeticionDerecho -= dt;
                 if (repeticionDerecho <= 0) { Colocar(); repeticionDerecho = 0.22f; }
             }
 
             particulas.Actualizar(dt, this);
-            render.ReconstruirPendientes(8);
+            render.Dia = ciclo.Luz;
+            render.ReconstruirPendientes(8 + Math.Min(40, render.TotalChunks / 60));
             if (balanceo > 0) balanceo = Math.Max(0, balanceo - dt * 4f);
             if (tiempoAviso > 0) tiempoAviso -= dt;
             if (tiempoNombre > 0) tiempoNombre -= dt;
@@ -410,7 +446,15 @@ namespace BlockForge.Controls
         public bool EsLiquido(int x, int y, int z)
         {
             int id = mundo.ObtenerBloque(x, y, z);
-            return id != 0 && Atlas.Obtener(id).Modo == ModoDibujo.Liquido;
+            if (id == 0) return false;
+            ModoDibujo modo = Atlas.Obtener(id).Modo;
+            return modo == ModoDibujo.Liquido || modo == ModoDibujo.Lava;
+        }
+
+        private bool EsLava(int x, int y, int z)
+        {
+            int id = mundo.ObtenerBloque(x, y, z);
+            return id != 0 && Atlas.Obtener(id).Modo == ModoDibujo.Lava;
         }
 
         public float LimiteSuperior
@@ -421,23 +465,28 @@ namespace BlockForge.Controls
         private bool Seleccionable(int x, int y, int z)
         {
             int id = mundo.ObtenerBloque(x, y, z);
-            return id != 0 && Atlas.Obtener(id).Modo != ModoDibujo.Liquido;
+            if (id == 0) return false;
+            ModoDibujo modo = Atlas.Obtener(id).Modo;
+            return modo != ModoDibujo.Liquido && modo != ModoDibujo.Lava;
         }
 
         // ------------------------------------------------------------------ construcción
         private void Romper()
         {
+            if (vida.Muerto) return;
+            // Primero se golpea a un mob si está más cerca que el bloque apuntado.
+            if (GolpearMob()) return;
             if (!objetivo.Hay) return;
-            int id = mundo.ObtenerBloque(objetivo.X, objetivo.Y, objetivo.Z);
-            ResultadoConstruccion r = juego.Eliminar(objetivo.X, objetivo.Y, objetivo.Z);
+            int x = objetivo.X, y = objetivo.Y, z = objetivo.Z;
+            int id = mundo.ObtenerBloque(x, y, z);
+            ResultadoConstruccion r = juego.Eliminar(x, y, z);
             balanceo = 1f;
             if (r == ResultadoConstruccion.Recolectado || r == ResultadoConstruccion.RetiradoSinSumar)
             {
-                float luz = render.EstaIluminado(objetivo.X, objetivo.Y + 1, objetivo.Z) ? 1f : 0.65f;
-                particulas.Romper(objetivo.X, objetivo.Y, objetivo.Z, Atlas.Obtener(id).Lado, luz);
-                render.BloqueCambiado(objetivo.X, objetivo.Y, objetivo.Z);
-                render.ReconstruirPendientes(int.MaxValue);
-                if (red != null) red.EnviarBloque(objetivo.X, objetivo.Y, objetivo.Z, 0);
+                particulas.Romper(x, y, z, Atlas.Obtener(id).Lado, render.BrilloEn(x, y + 1, z));
+                CambioLocal(x, y, z);
+                if (r == ResultadoConstruccion.Recolectado) AlRecolectar(juego.UltimoRecolectado);
+                BloqueRoto(id, x, y, z);
                 NotificarEstado();
             }
             else
@@ -446,12 +495,25 @@ namespace BlockForge.Controls
             }
         }
 
+        /// <summary>Aplica en pantalla y en la red un bloque que cambió en este equipo.</summary>
+        private void CambioLocal(int x, int y, int z)
+        {
+            render.BloqueCambiado(x, y, z);
+            render.ReconstruirPendientes(int.MaxValue);
+            if (red != null) red.EnviarBloque(x, y, z, mundo.ObtenerBloque(x, y, z));
+        }
+
         private void Colocar()
         {
             if (!objetivo.Hay) return;
             int x = objetivo.X + objetivo.NX, y = objetivo.Y + objetivo.NY, z = objetivo.Z + objetivo.NZ;
             TipoBloque tipo = TipoActivo;
-            if (tipo == null) return;
+            if (tipo == null || vida.Muerto) return;
+            if (!tipo.EsColocable)
+            {
+                if (!tipo.EsComida) Avisar("El " + tipo.Nombre.ToLowerInvariant() + " no se coloca: sirve para fabricar (E).", Color.FromArgb(255, 210, 120));
+                return;
+            }
             if (!mundo.EstaDentro(x, y, z))
             {
                 Avisar("No se puede construir fuera de los límites del mundo.", Color.FromArgb(255, 210, 120));
@@ -465,9 +527,8 @@ namespace BlockForge.Controls
             balanceo = 1f;
             if (r == ResultadoConstruccion.Colocado)
             {
-                render.BloqueCambiado(x, y, z);
-                render.ReconstruirPendientes(int.MaxValue);
-                if (red != null) red.EnviarBloque(x, y, z, tipo.IdTipoBloque);
+                CambioLocal(x, y, z);
+                if (tipo.Nombre == "Brote") RegistrarBrote(x, y, z);
                 NotificarEstado();
             }
             else
@@ -495,6 +556,9 @@ namespace BlockForge.Controls
                 case ResultadoConstruccion.NoColocable:
                     Avisar("Ese tipo de bloque no se puede colocar.", advertencia);
                     break;
+                case ResultadoConstruccion.SinSoporte:
+                    Avisar(TipoActivo != null && TipoActivo.Luz > 0 ? "La antorcha necesita un bloque sólido debajo." : "Las plantas se colocan sobre pasto o tierra.", advertencia);
+                    break;
             }
         }
 
@@ -512,9 +576,9 @@ namespace BlockForge.Controls
 
         public void SeleccionarRanura(int indice)
         {
-            if (ranuras.Count == 0) return;
-            ranuraActiva = ((indice % ranuras.Count) + ranuras.Count) % ranuras.Count;
+            ranuraActiva = ((indice % barra.Length) + barra.Length) % barra.Length;
             tiempoNombre = 2f;
+            comiendo = 0;
             NotificarEstado();
         }
 
@@ -562,9 +626,7 @@ namespace BlockForge.Controls
             }
             else if (e.Button == MouseButtons.Middle && objetivo.Hay)
             {
-                int id = mundo.ObtenerBloque(objetivo.X, objetivo.Y, objetivo.Z);
-                int indice = ranuras.FindIndex(t => t.IdTipoBloque == id);
-                if (indice >= 0) SeleccionarRanura(indice);
+                PonerEnBarra(CatalogoBloques.Obtener(mundo.ObtenerBloque(objetivo.X, objetivo.Y, objetivo.Z)));
             }
         }
 
@@ -647,7 +709,8 @@ namespace BlockForge.Controls
             texto.NuevoCuadro();
 
             bool bajoAgua = jugador.CabezaEnAgua;
-            Color niebla = bajoAgua ? Color.FromArgb(30, 60, 140) : ColorNiebla;
+            Color niebla = bajoAgua ? Color.FromArgb(30, 60, 140) : ciclo.ColorNiebla;
+            if (EsLava((int)Math.Floor(jugador.Ojo.X), (int)Math.Floor(jugador.Ojo.Y), (int)Math.Floor(jugador.Ojo.Z))) { niebla = Color.FromArgb(200, 70, 10); bajoAgua = true; }
             float distancia = bajoAgua ? 14f : cfg.DistanciaVision;
             GL.glColorMask(1, 1, 1, 1);
             GL.glClearColor(niebla.R / 255f, niebla.G / 255f, niebla.B / 255f, 1);
@@ -657,7 +720,7 @@ namespace BlockForge.Controls
 
             float lejos = Math.Max(256f, cfg.DistanciaVision * 2.5f);
             float[] proyeccion = Matriz.Perspectiva(cfg.CampoVision, (float)ancho / alto, 0.05f, lejos);
-            Vec3 ojo = terceraPersona ? CamaraTercera() : jugador.Ojo;
+            Vec3 ojo = (terceraPersona ? CamaraTercera() : jugador.Ojo) + Sacudida();
             float[] vista = Matriz.Vista(ojo, jugador.Giro, jugador.Inclinacion);
             matrizVista = Matriz.Multiplicar(proyeccion, vista);
             frustum.Actualizar(matrizVista);
@@ -672,7 +735,11 @@ namespace BlockForge.Controls
             GL.glFogf(GL.FOG_END, distancia);
             GL.glFogfv(GL.FOG_COLOR, new float[] { niebla.R / 255f, niebla.G / 255f, niebla.B / 255f, 1 });
 
-            if (!bajoAgua) DibujarCielo(ojo, lejos, niebla);
+            if (!bajoAgua)
+            {
+                DibujarCielo(ojo, lejos, niebla);
+                DibujarAstros(ojo);
+            }
 
             GL.glEnable(GL.TEXTURE_2D);
             GL.glEnable(GL.ALPHA_TEST);
@@ -683,6 +750,8 @@ namespace BlockForge.Controls
             particulas.Dibujar(jugador.Giro, jugador.Inclinacion);
             GL.glDisable(GL.ALPHA_TEST);
             DibujarJugadoresRemotos();
+            mobs.Dibujar(render, (float)reloj.Elapsed.TotalSeconds);
+            GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
 
             DibujarSeleccion();
             DibujarNubes(ojo, lejos);
@@ -718,7 +787,8 @@ namespace BlockForge.Controls
             for (int i = 0; i < segmentos; i++)
             {
                 double a0 = i * Math.PI * 2 / segmentos, a1 = (i + 1) * Math.PI * 2 / segmentos;
-                GL.glColor3f(ColorCielo.R / 255f, ColorCielo.G / 255f, ColorCielo.B / 255f);
+                Color cielo = ciclo.ColorCielo;
+                GL.glColor3f(cielo.R / 255f, cielo.G / 255f, cielo.B / 255f);
                 GL.glVertex3f(ojo.X, y, ojo.Z);
                 // Orden horario visto desde arriba: la cara queda hacia abajo, visible desde el suelo.
                 GL.glColor3f(niebla.R / 255f, niebla.G / 255f, niebla.B / 255f);
@@ -740,7 +810,8 @@ namespace BlockForge.Controls
             GL.glEnable(GL.BLEND);
             GL.glDisable(GL.CULL_FACE);
             GL.glBindTexture(GL.TEXTURE_2D, Atlas.TexturaNubes);
-            GL.glColor4f(1, 1, 1, 0.85f);
+            float brillo = 0.25f + 0.75f * ciclo.Luz;
+            GL.glColor4f(brillo, brillo, brillo * 1.02f, 0.85f);
             GL.glBegin(GL.QUADS);
             float x0 = ojo.X - d, x1 = ojo.X + d, z0 = ojo.Z - d, z1 = ojo.Z + d;
             GL.glTexCoord2f((x0 + desplazamiento) * escala, z0 * escala); GL.glVertex3f(x0, y, z0);
@@ -801,20 +872,37 @@ namespace BlockForge.Controls
             GL.glEnable(GL.ALPHA_TEST);
             GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
             float u0, v0, u1, v1;
+            float brilloMano = render.BrilloEn((int)Math.Floor(jugador.Ojo.X), (int)Math.Floor(jugador.Ojo.Y), (int)Math.Floor(jugador.Ojo.Z));
+            if (a.Plano)
+            {
+                // Plantas, comida y materiales se sostienen como un dibujo plano.
+                Atlas.Uv(a.Icono, out u0, out v0, out u1, out v1);
+                GL.glDisable(GL.CULL_FACE);
+                GL.glBegin(GL.QUADS);
+                GL.glColor3f(brilloMano, brilloMano, brilloMano);
+                GL.glTexCoord2f(u0, v1); GL.glVertex3f(0, 0, 0.5f);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(1, 0, 0.5f);
+                GL.glTexCoord2f(u1, v0); GL.glVertex3f(1, 1, 0.5f);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(0, 1, 0.5f);
+                GL.glEnd();
+                GL.glEnable(GL.CULL_FACE);
+                GL.glDisable(GL.ALPHA_TEST);
+                return;
+            }
             GL.glBegin(GL.QUADS);
             Atlas.Uv(a.Arriba, out u0, out v0, out u1, out v1);
-            GL.glColor3f(1, 1, 1);
+            GL.glColor3f(brilloMano, brilloMano, brilloMano);
             GL.glTexCoord2f(u0, v0); GL.glVertex3f(0, 1, 0);
             GL.glTexCoord2f(u0, v1); GL.glVertex3f(0, 1, 1);
             GL.glTexCoord2f(u1, v1); GL.glVertex3f(1, 1, 1);
             GL.glTexCoord2f(u1, v0); GL.glVertex3f(1, 1, 0);
             Atlas.Uv(a.Lado, out u0, out v0, out u1, out v1);
-            GL.glColor3f(0.8f, 0.8f, 0.8f);
+            GL.glColor3f(0.8f * brilloMano, 0.8f * brilloMano, 0.8f * brilloMano);
             GL.glTexCoord2f(u0, v1); GL.glVertex3f(0, 0, 1);
             GL.glTexCoord2f(u1, v1); GL.glVertex3f(1, 0, 1);
             GL.glTexCoord2f(u1, v0); GL.glVertex3f(1, 1, 1);
             GL.glTexCoord2f(u0, v0); GL.glVertex3f(0, 1, 1);
-            GL.glColor3f(0.6f, 0.6f, 0.6f);
+            GL.glColor3f(0.6f * brilloMano, 0.6f * brilloMano, 0.6f * brilloMano);
             GL.glTexCoord2f(u0, v1); GL.glVertex3f(0, 0, 0);
             GL.glTexCoord2f(u1, v1); GL.glVertex3f(0, 0, 1);
             GL.glTexCoord2f(u1, v0); GL.glVertex3f(0, 1, 1);
@@ -836,7 +924,8 @@ namespace BlockForge.Controls
             GL.glEnable(GL.BLEND);
 
             float escala = Math.Max(1f, Math.Min(ancho / 900f, alto / 600f));
-            if (bajoAgua) Rectangulo(0, 0, ancho, alto, Color.FromArgb(90, 20, 50, 160));
+            if (bajoAgua) Rectangulo(0, 0, ancho, alto, jugador.CabezaEnAgua ? Color.FromArgb(90, 20, 50, 160) : Color.FromArgb(150, 200, 70, 10));
+            if (vida.DesdeDano < 0.4f) Rectangulo(0, 0, ancho, alto, Color.FromArgb((int)(110 * (1 - vida.DesdeDano / 0.4f)), 200, 0, 0));
             DibujarNombresJugadores(ancho, alto, escala);
 
             if (capturado && !chatAbierto)
@@ -855,6 +944,7 @@ namespace BlockForge.Controls
             }
 
             DibujarBarra(ancho, alto, escala);
+            DibujarVidaYHambre(ancho, alto, escala);
 
             GL.glEnable(GL.TEXTURE_2D);
             float t = 15 * escala;
@@ -870,6 +960,8 @@ namespace BlockForge.Controls
                     "Mirando hacia: " + PuntoCardinal(),
                     "Chunks dibujados: " + render.ChunksDibujados + " / " + render.TotalChunks,
                     "Mundo: " + mundo.Ancho + " × " + mundo.Largo + " × " + mundo.Alto + "  Semilla: " + mundo.Semilla,
+                    "Hora: " + ciclo.Texto + "  Luz: " + render.BrilloEn((int)Math.Floor(jugador.Posicion.X), (int)Math.Floor(jugador.Posicion.Y + 1), (int)Math.Floor(jugador.Posicion.Z)).ToString("0.00") +
+                    "  Mobs: " + mobs.Mobs.Count,
                     objetivo.Hay ? "Apuntando a: " + NombreBloque(mundo.ObtenerBloque(objetivo.X, objetivo.Y, objetivo.Z)) +
                                    " (" + objetivo.X + ", " + objetivo.Y + ", " + objetivo.Z + ")" : "Apuntando a: -",
                     "OpenGL: " + GL.Texto(GL.RENDERER)
@@ -889,6 +981,8 @@ namespace BlockForge.Controls
                 texto.Dibujar(estado, ancho - 10, yDerecha, t * 0.85f, red.Conectado ? Color.FromArgb(140, 235, 140) : Color.FromArgb(255, 130, 110), true, 2);
                 yDerecha += t * 1.4f;
             }
+            texto.Dibujar((ciclo.EsDeNoche ? "☾ " : "☀ ") + ciclo.Texto, ancho - 10, yDerecha, t * 0.85f, Color.FromArgb(230, 230, 230), true, 2);
+            yDerecha += t * 1.4f;
             if (jugador.Volando) texto.Dibujar("Vuelo", ancho - 10, yDerecha, t * 0.85f, Color.FromArgb(180, 220, 255), true, 2);
 
             float baseBarra = alto - 64 * escala;
@@ -913,14 +1007,14 @@ namespace BlockForge.Controls
 
         private void DibujarBarra(int ancho, int alto, float escala)
         {
-            if (ranuras.Count == 0) return;
+            int n = barra.Length;
             float lado = 46 * escala, separacion = 4 * escala;
-            float total = ranuras.Count * lado + (ranuras.Count - 1) * separacion;
+            float total = n * lado + (n - 1) * separacion;
             float x = (ancho - total) / 2f, y = alto - lado - 12 * escala;
 
             GL.glDisable(GL.TEXTURE_2D);
             Rectangulo(x - 6 * escala, y - 6 * escala, x + total + 6 * escala, y + lado + 6 * escala, Color.FromArgb(110, 0, 0, 0));
-            for (int i = 0; i < ranuras.Count; i++)
+            for (int i = 0; i < n; i++)
             {
                 float rx = x + i * (lado + separacion);
                 Rectangulo(rx, y, rx + lado, y + lado, Color.FromArgb(120, 20, 20, 20));
@@ -938,20 +1032,31 @@ namespace BlockForge.Controls
             GL.glEnable(GL.TEXTURE_2D);
             GL.glEnable(GL.ALPHA_TEST);
             GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
-            for (int i = 0; i < ranuras.Count; i++)
+            for (int i = 0; i < n; i++)
             {
+                if (barra[i] == null) continue;
                 float rx = x + i * (lado + separacion);
-                int cantidad = juego.Inventario.ObtenerCantidad(ranuras[i].IdTipoBloque);
-                DibujarIcono(Atlas.Obtener(ranuras[i].IdTipoBloque), rx + lado / 2f, y + lado / 2f, lado * 0.36f, cantidad > 0 ? 1f : 0.35f);
+                int cantidad = juego.Inventario.ObtenerCantidad(barra[i].IdTipoBloque);
+                DibujarIcono(Atlas.Obtener(barra[i].IdTipoBloque), rx + lado / 2f, y + lado / 2f, lado * 0.36f, cantidad > 0 ? 1f : 0.35f);
             }
             GL.glDisable(GL.ALPHA_TEST);
-            for (int i = 0; i < ranuras.Count; i++)
+            for (int i = 0; i < n; i++)
             {
                 float rx = x + i * (lado + separacion);
-                int cantidad = juego.Inventario.ObtenerCantidad(ranuras[i].IdTipoBloque);
-                texto.Dibujar(cantidad.ToString(), rx + lado - 3 * escala, y + lado - 19 * escala, 13 * escala,
-                              cantidad > 0 ? Color.White : Color.FromArgb(160, 160, 160), true, 2);
+                if (barra[i] != null)
+                {
+                    int cantidad = juego.Inventario.ObtenerCantidad(barra[i].IdTipoBloque);
+                    texto.Dibujar(cantidad.ToString(), rx + lado - 3 * escala, y + lado - 19 * escala, 13 * escala,
+                                  cantidad > 0 ? Color.White : Color.FromArgb(160, 160, 160), true, 2);
+                }
                 texto.Dibujar((i + 1).ToString(), rx + 4 * escala, y + 1 * escala, 10 * escala, Color.FromArgb(200, 220, 220, 220));
+            }
+            if (comiendo > 0)
+            {
+                // Barra de progreso al comer, sobre el espacio activo.
+                float rx = x + ranuraActiva * (lado + separacion);
+                Rectangulo(rx + 4, y - 9 * escala, rx + lado - 4, y - 5 * escala, Color.FromArgb(180, 0, 0, 0));
+                Rectangulo(rx + 4, y - 9 * escala, rx + 4 + (lado - 8) * Math.Min(1f, comiendo / TiempoComer), y - 5 * escala, Color.FromArgb(230, 120, 220, 90));
             }
         }
 
@@ -959,6 +1064,18 @@ namespace BlockForge.Controls
         private static void DibujarIcono(Apariencia a, float cx, float cy, float r, float luz)
         {
             float u0, v0, u1, v1;
+            if (a.Plano)
+            {
+                Atlas.Uv(a.Icono, out u0, out v0, out u1, out v1);
+                GL.glColor3f(luz, luz, luz);
+                GL.glBegin(GL.QUADS);
+                GL.glTexCoord2f(u0, v0); GL.glVertex2f(cx - r, cy - r);
+                GL.glTexCoord2f(u0, v1); GL.glVertex2f(cx - r, cy + r);
+                GL.glTexCoord2f(u1, v1); GL.glVertex2f(cx + r, cy + r);
+                GL.glTexCoord2f(u1, v0); GL.glVertex2f(cx + r, cy - r);
+                GL.glEnd();
+                return;
+            }
             GL.glBegin(GL.QUADS);
             Atlas.Uv(a.Arriba, out u0, out v0, out u1, out v1);
             GL.glColor3f(luz, luz, luz);

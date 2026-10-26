@@ -19,6 +19,7 @@ namespace BlockForge.Forms
         private PartidaRed red;
         private Upnp upnp;
         private int puertoUpnp;
+        private Tunel tunel;
         private FormWindowState estadoAnterior;
         private bool pantallaCompleta, conexionPerdida;
 
@@ -162,8 +163,77 @@ namespace BlockForge.Forms
             vistaMundo.InfoConexion = "Red local: " + local + (red.TieneContrasena ? " · con contraseña" : "");
             vistaMundo.Invitacion = local;
             vistaMundo.AgregarChat("Partida abierta en tu red local (" + local + ").", amarillo);
-            if (opciones.Internet) PrepararInternet(red.Puerto, local);
+            if (opciones.Tunel) PrepararTunel(red.Puerto, local);
+            else if (opciones.Internet) PrepararInternet(red.Puerto, local);
             else vistaMundo.AgregarChat("En la misma red pueden entrar con «Unirse a partida».", amarillo);
+            ActualizarEstado();
+        }
+
+        /// <summary>
+        /// Abre un túnel rápido de Cloudflare hacia la partida. La primera vez pide permiso para descargar
+        /// cloudflared (el programa oficial de Cloudflare); después la dirección sale en unos segundos.
+        /// </summary>
+        private async void PrepararTunel(int puerto, string local)
+        {
+            Color amarillo = Color.FromArgb(255, 225, 120), rojo = Color.FromArgb(255, 150, 130), verde = Color.FromArgb(150, 235, 150);
+            string programa = Tunel.RutaCloudflared();
+            if (programa == null)
+            {
+                vistaMundo.LiberarMouse();
+                DialogResult r = MessageBox.Show(this,
+                    "Para el túnel se usa cloudflared, el programa oficial y gratuito de Cloudflare.\n\n" +
+                    "Archivo: cloudflared-windows-amd64.exe (unos 60 MB)\n" +
+                    "Origen: github.com/cloudflare/cloudflared (versión más reciente)\n" +
+                    "Se guardará en: " + Tunel.CarpetaDatos + "\n\n" +
+                    "Se descarga una sola vez. ¿Descargarlo ahora?",
+                    "BlockForge — Túnel de Cloudflare", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (r != DialogResult.Yes)
+                {
+                    vistaMundo.AgregarChat("Sin túnel: la partida sigue abierta en tu red local (" + local + ").", amarillo);
+                    return;
+                }
+                vistaMundo.AgregarChat("Descargando cloudflared...", amarillo);
+                int ultimo = -1;
+                Progress<int> progreso = new Progress<int>(p =>
+                {
+                    if (p / 25 != ultimo / 25 && !IsDisposed) vistaMundo.AgregarChat("Descargando cloudflared: " + p + " %", amarillo);
+                    ultimo = p;
+                });
+                try
+                {
+                    programa = await Tunel.Descargar(progreso, System.Threading.CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    if (IsDisposed) return;
+                    vistaMundo.AgregarChat("No se pudo descargar cloudflared: " + ex.Message, rojo);
+                    vistaMundo.AgregarChat("Puedes bajarlo a mano desde github.com/cloudflare/cloudflared/releases y ponerlo junto a BlockForge.exe.", rojo);
+                    return;
+                }
+                if (IsDisposed || red == null) return;
+            }
+
+            vistaMundo.AgregarChat("Abriendo el túnel de Cloudflare...", amarillo);
+            try
+            {
+                tunel = await Tunel.Abrir(programa, puerto, 40000);
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed) return;
+                vistaMundo.AgregarChat("No se pudo abrir el túnel: " + ex.Message, rojo);
+                return;
+            }
+            if (IsDisposed || red == null)
+            {
+                tunel.Dispose();
+                tunel = null;
+                return;
+            }
+            vistaMundo.Invitacion = tunel.Url;
+            vistaMundo.InfoConexion = "Internet: " + tunel.Url + (red.TieneContrasena ? " · con contraseña" : "") + "\nRed local: " + local;
+            vistaMundo.AgregarChat("¡Listo! Tus amigos entran pegando " + tunel.Url + " en «Unirse a partida».", verde);
+            vistaMundo.AgregarChat("Esc → Copiar invitación. La dirección cambia cada vez que abres la partida.", amarillo);
             ActualizarEstado();
         }
 
@@ -390,6 +460,11 @@ namespace BlockForge.Forms
                 red.ConexionPerdida -= AlPerderConexion;
                 red.Dispose();
                 red = null;
+            }
+            if (tunel != null)
+            {
+                tunel.Dispose();
+                tunel = null;
             }
             if (upnp != null && puertoUpnp != 0)
             {

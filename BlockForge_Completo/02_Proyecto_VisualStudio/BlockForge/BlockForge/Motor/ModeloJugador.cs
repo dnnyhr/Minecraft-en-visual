@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using BlockForge.Services;
@@ -63,6 +63,9 @@ namespace BlockForge.Motor
         private static readonly Color Pantalon = Color.FromArgb(52, 64, 140);
         private static readonly Color Zapatos = Color.FromArgb(60, 60, 60);
         private const float P = 1f / 16f; // un píxel de la skin en unidades del modelo
+
+        /// <summary>Color que multiplica a las cajas con textura (para teñir mobs de rojo, blanco o naranja).</summary>
+        internal static float TinteR = 1f, TinteG = 1f, TinteB = 1f, TinteA = 1f;
 
         /// <summary>Dibuja el modelo con los pies en "pos" mirando según giro e inclinación.</summary>
         public static void Dibujar(Vec3 pos, float giro, float inclinacion, float caminata, float velocidad, Color camiseta, float luz, SkinGL skin)
@@ -153,12 +156,12 @@ namespace BlockForge.Motor
         /// (u, v) es la esquina de la plantilla y w, h, d el ancho, alto y fondo de la caja.
         /// El frente del personaje mira hacia -Z y su derecha es +X.
         /// </summary>
-        private static void Caja(float px0, float py0, float pz0, float px1, float py1, float pz1,
-                                 float u, float v, float w, float h, float d, bool espejo, float inflar, float luz, float alto)
+        internal static void Caja(float px0, float py0, float pz0, float px1, float py1, float pz1,
+                                  float u, float v, float w, float h, float d, bool espejo, float inflar, float luz, float alto, float ancho = 64f)
         {
             float x0 = px0 * P - inflar, y0 = py0 * P - inflar, z0 = pz0 * P - inflar;
             float x1 = px1 * P + inflar, y1 = py1 * P + inflar, z1 = pz1 * P + inflar;
-            float a = 64f;
+            float a = ancho;
 
             GL.glBegin(GL.QUADS);
             // Arriba (+Y): la parte de abajo de la plantilla toca el frente.
@@ -194,7 +197,7 @@ namespace BlockForge.Motor
         {
             if (espejo) { float t = u0; u0 = u1; u1 = t; }
             u0 /= ancho; u1 /= ancho; v0 /= alto; v1 /= alto;
-            GL.glColor3f(luz, luz, luz);
+            GL.glColor4f(luz * TinteR, luz * TinteG, luz * TinteB, TinteA);
             // Orden de envío antihorario visto desde fuera (a, d, c, b).
             GL.glTexCoord2f(u0, v0); GL.glVertex3f(ax, ay, az);
             GL.glTexCoord2f(u0, v1); GL.glVertex3f(dx, dy, dz);

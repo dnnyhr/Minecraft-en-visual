@@ -13,7 +13,7 @@ namespace BlockForge.Motor
         private const string Lib = "opengl32.dll";
 
         public const int COLOR_BUFFER_BIT = 0x4000, DEPTH_BUFFER_BIT = 0x0100;
-        public const int LINES = 0x0001, TRIANGLES = 0x0004, QUADS = 0x0007;
+        public const int POINTS = 0x0000, LINES = 0x0001, TRIANGLES = 0x0004, QUADS = 0x0007;
         public const int DEPTH_TEST = 0x0B71, CULL_FACE = 0x0B44, TEXTURE_2D = 0x0DE1, BLEND = 0x0BE2;
         public const int ALPHA_TEST = 0x0BC0, FOG = 0x0B60, LINE_SMOOTH = 0x0B20, POLYGON_OFFSET_FILL = 0x8037;
         public const int ZERO = 0, ONE = 1, SRC_ALPHA = 0x0302, ONE_MINUS_SRC_ALPHA = 0x0303, ONE_MINUS_DST_COLOR = 0x0307;
@@ -51,6 +51,7 @@ namespace BlockForge.Motor
         [DllImport(Lib)] public static extern void glCullFace(int modo);
         [DllImport(Lib)] public static extern void glPolygonOffset(float factor, float unidades);
         [DllImport(Lib)] public static extern void glLineWidth(float ancho);
+        [DllImport(Lib)] public static extern void glPointSize(float tamano);
         [DllImport(Lib)] public static extern void glHint(int objetivo, int modo);
         [DllImport(Lib)] public static extern void glPixelStorei(int nombre, int valor);
 
@@ -138,6 +139,48 @@ namespace BlockForge.Motor
         }
 
         [DllImport("user32.dll")] public static extern bool PeekMessage(out MSG msg, IntPtr hwnd, uint min, uint max, uint quitar);
+
+        // Raw Input: movimiento del mouse sin aceleración ni recentrado (como en los juegos).
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RAWINPUTDEVICE
+        {
+            public ushort usUsagePage, usUsage;
+            public uint dwFlags;
+            public IntPtr hwndTarget;
+        }
+
+        public const int WM_INPUT = 0x00FF;
+        public const uint RID_INPUT = 0x10000003;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool RegisterRawInputDevices(RAWINPUTDEVICE[] dispositivos, uint cantidad, uint tamano);
+        [DllImport("user32.dll")]
+        public static extern uint GetRawInputData(IntPtr hRawInput, uint comando, IntPtr datos, ref uint tamano, uint tamanoCabecera);
+
+        /// <summary>Lee el desplazamiento relativo de un WM_INPUT de mouse. Devuelve false si no es un movimiento relativo.</summary>
+        public static bool LeerMovimientoRaw(IntPtr lParam, out int dx, out int dy)
+        {
+            dx = dy = 0;
+            int cabecera = 8 + 2 * IntPtr.Size;
+            uint tamano = 0;
+            GetRawInputData(lParam, RID_INPUT, IntPtr.Zero, ref tamano, (uint)cabecera);
+            if (tamano == 0 || tamano > 512) return false;
+            IntPtr buffer = Marshal.AllocHGlobal((int)tamano);
+            try
+            {
+                if (GetRawInputData(lParam, RID_INPUT, buffer, ref tamano, (uint)cabecera) != tamano) return false;
+                if (Marshal.ReadInt32(buffer, 0) != 0) return false; // RIM_TYPEMOUSE
+                ushort banderas = (ushort)Marshal.ReadInt16(buffer, cabecera);
+                if ((banderas & 1) != 0) return false; // MOUSE_MOVE_ABSOLUTE (escritorio remoto, tabletas)
+                dx = Marshal.ReadInt32(buffer, cabecera + 12);
+                dy = Marshal.ReadInt32(buffer, cabecera + 16);
+                return true;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
 
         public static bool TeclaPresionada(System.Windows.Forms.Keys tecla)
         {

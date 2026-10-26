@@ -27,7 +27,17 @@ namespace BlockForge.Red
         /// <summary>Ambos: mensaje de chat.</summary>
         Chat = 7,
         /// <summary>Anfitrión → cliente: no se aceptó la conexión.</summary>
-        Rechazo = 8
+        Rechazo = 8,
+        /// <summary>Anfitrión → clientes: hora del día y estado de todos los mobs (10 veces por segundo).</summary>
+        Mobs = 9,
+        /// <summary>Cliente → anfitrión: el jugador golpeó un mob (id, daño).</summary>
+        AtacarMob = 10,
+        /// <summary>Anfitrión → cliente: el jugador recibe daño (cantidad, origen).</summary>
+        Dano = 11,
+        /// <summary>Anfitrión → clientes: explotó un creeper (centro, radio), solo para efectos.</summary>
+        Explosion = 12,
+        /// <summary>Anfitrión → cliente: objetos que soltó un mob que mató el jugador.</summary>
+        Recompensa = 13
     }
 
     internal class Mensaje
@@ -44,7 +54,7 @@ namespace BlockForge.Red
 
     internal static class Protocolo
     {
-        public const int Version = 2;
+        public const int Version = 3;
         public const int PuertoPredeterminado = 25570;
         public const int PuertoDescubrimiento = 25571;
         public const int TamanoMaximo = 64 * 1024 * 1024;

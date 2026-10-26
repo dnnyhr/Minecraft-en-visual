@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Linq;
 using BlockForge.Models;
 
 namespace BlockForge.Services
@@ -11,6 +12,12 @@ namespace BlockForge.Services
     /// </summary>
     public static class GeneradorTerreno
     {
+        private static int Id(string nombre)
+        {
+            TipoBloque t = CatalogoBloques.Tipos.FirstOrDefault(x => string.Equals(x.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+            return t != null ? t.IdTipoBloque : 0;
+        }
+
         public static void Generar(Mundo mundo)
         {
             int pasto = CatalogoBloques.PorNombre("Pasto").IdTipoBloque;
@@ -19,8 +26,9 @@ namespace BlockForge.Services
             int agua = CatalogoBloques.PorNombre("Agua").IdTipoBloque;
             int arena = CatalogoBloques.PorNombre("Arena").IdTipoBloque;
             int grava = CatalogoBloques.PorNombre("Grava").IdTipoBloque;
-            int tronco = CatalogoBloques.PorNombre("Tronco").IdTipoBloque;
-            int hojas = CatalogoBloques.PorNombre("Hojas").IdTipoBloque;
+            int arcilla = Id("Arcilla"), lava = Id("Lava"), carbon = Id("Mineral de carbón");
+            int hierba = Id("Hierba alta");
+            int[] flores = { Id("Rosa"), Id("Diente de león"), Id("Aciano") };
 
             Ruido ruido = new Ruido(mundo.Semilla);
             Random azar = new Random(mundo.Semilla);
@@ -46,7 +54,15 @@ namespace BlockForge.Services
                     for (int y = 0; y <= superficie; y++)
                     {
                         int tipo;
-                        if (y == superficie) tipo = fondo ? (ruido.Valor(x / 5.0, z / 5.0) > 0.2 ? grava : arena) : playa ? arena : pasto;
+                        if (y == superficie)
+                        {
+                            if (fondo)
+                            {
+                                double r = ruido.Valor(x / 5.0, z / 5.0);
+                                tipo = r > 0.45 && arcilla != 0 ? arcilla : r > 0.2 ? grava : arena;
+                            }
+                            else tipo = playa ? arena : pasto;
+                        }
                         else if (y >= superficie - profundidadTierra) tipo = playa || fondo ? arena : tierra;
                         else tipo = piedra;
                         mundo.EstablecerBloque(x, y, z, tipo);
@@ -62,6 +78,44 @@ namespace BlockForge.Services
                 }
             }
 
+            // Vetas de carbón dentro de la piedra.
+            if (carbon != 0)
+            {
+                int vetas = mundo.Ancho * mundo.Largo * mundo.Alto / 2600;
+                for (int i = 0; i < vetas; i++)
+                {
+                    int x = azar.Next(mundo.Ancho), z = azar.Next(mundo.Largo), y = 1 + azar.Next(Math.Max(1, superficies[x, z] - 4));
+                    int tamano = 3 + azar.Next(6);
+                    for (int k = 0; k < tamano; k++)
+                    {
+                        if (mundo.ObtenerBloque(x, y, z) == piedra) mundo.EstablecerBloque(x, y, z, carbon);
+                        x += azar.Next(-1, 2); y += azar.Next(-1, 2); z += azar.Next(-1, 2);
+                    }
+                }
+            }
+
+            // Cuevas: túneles que serpentean bajo tierra; en lo más hondo se llenan de lava.
+            int tuneles = Math.Max(3, mundo.Ancho * mundo.Largo / 1100);
+            for (int i = 0; i < tuneles; i++)
+            {
+                double x = azar.Next(mundo.Ancho), z = azar.Next(mundo.Largo);
+                double y = 4 + azar.NextDouble() * Math.Max(4, superficies[(int)x, (int)z] - 8);
+                double giro = azar.NextDouble() * Math.PI * 2, inclinacion = (azar.NextDouble() - 0.5) * 0.6;
+                int largo = 60 + azar.Next(100);
+                for (int paso = 0; paso < largo; paso++)
+                {
+                    double radio = 1.3 + Math.Sin(paso * 0.15 + i) * 0.6 + azar.NextDouble() * 0.5;
+                    Excavar(mundo, x, y, z, radio, superficies, agua, lava, nivelAgua);
+                    x += Math.Cos(giro) * Math.Cos(inclinacion);
+                    z += Math.Sin(giro) * Math.Cos(inclinacion);
+                    y += Math.Sin(inclinacion);
+                    giro += (azar.NextDouble() - 0.5) * 0.5;
+                    inclinacion = Math.Max(-0.7, Math.Min(0.7, inclinacion + (azar.NextDouble() - 0.5) * 0.3));
+                    if (y < 2) inclinacion = Math.Abs(inclinacion);
+                    if (x < 1 || z < 1 || x >= mundo.Ancho - 1 || z >= mundo.Largo - 1) break;
+                }
+            }
+
             // Árboles: tronco de 4 a 6 bloques con una copa de hojas, separados entre sí.
             bool[,] ocupado = new bool[mundo.Ancho, mundo.Largo];
             for (int x = 3; x < mundo.Ancho - 3; x++)
@@ -71,9 +125,7 @@ namespace BlockForge.Services
                     int superficie = superficies[x, z];
                     if (azar.NextDouble() > 0.014) continue;
                     if (mundo.ObtenerBloque(x, superficie, z) != pasto || ocupado[x, z]) continue;
-                    int altura = 4 + azar.Next(3);
-                    if (superficie + altura + 2 >= mundo.Alto) continue;
-
+                    if (!PlantarArbol(mundo, x, superficie, z, azar, null)) continue;
                     for (int dx = -3; dx <= 3; dx++)
                     {
                         for (int dz = -3; dz <= 3; dz++)
@@ -82,28 +134,93 @@ namespace BlockForge.Services
                             if (ox >= 0 && oz >= 0 && ox < mundo.Ancho && oz < mundo.Largo) ocupado[ox, oz] = true;
                         }
                     }
+                }
+            }
 
-                    mundo.EstablecerBloque(x, superficie, z, tierra);
-                    int cima = superficie + altura;
-                    for (int y = cima - 2; y <= cima + 1; y++)
+            // Flores y hierba alta sobre el pasto.
+            for (int x = 0; x < mundo.Ancho; x++)
+            {
+                for (int z = 0; z < mundo.Largo; z++)
+                {
+                    int y = superficies[x, z];
+                    if (y + 1 >= mundo.Alto || mundo.ObtenerBloque(x, y, z) != pasto || mundo.ObtenerBloque(x, y + 1, z) != 0) continue;
+                    double p = azar.NextDouble();
+                    double grupo = ruido.Valor(x / 6.0 + 50, z / 6.0 - 50);
+                    if (p < 0.012 + Math.Max(0, grupo) * 0.03)
                     {
-                        int radio = y <= cima - 1 ? 2 : 1;
-                        for (int dx = -radio; dx <= radio; dx++)
-                        {
-                            for (int dz = -radio; dz <= radio; dz++)
-                            {
-                                bool esquina = Math.Abs(dx) == radio && Math.Abs(dz) == radio;
-                                if (esquina && (y == cima + 1 || azar.Next(2) == 0)) continue;
-                                if (mundo.ObtenerBloque(x + dx, y, z + dz) == 0) mundo.EstablecerBloque(x + dx, y, z + dz, hojas);
-                            }
-                        }
+                        int flor = flores[azar.Next(flores.Length)];
+                        if (flor != 0) mundo.EstablecerBloque(x, y + 1, z, flor);
                     }
-                    for (int y = superficie + 1; y <= cima; y++)
+                    else if (p < 0.09 && hierba != 0)
                     {
-                        mundo.EstablecerBloque(x, y, z, tronco);
+                        mundo.EstablecerBloque(x, y + 1, z, hierba);
                     }
                 }
             }
+        }
+
+        private static void Excavar(Mundo mundo, double cx, double cy, double cz, double radio, int[,] superficies, int agua, int lava, int nivelAgua)
+        {
+            int r = (int)Math.Ceiling(radio);
+            for (int x = (int)cx - r; x <= (int)cx + r; x++)
+            {
+                for (int y = (int)cy - r; y <= (int)cy + r; y++)
+                {
+                    for (int z = (int)cz - r; z <= (int)cz + r; z++)
+                    {
+                        if (x < 1 || z < 1 || y < 1 || x >= mundo.Ancho - 1 || z >= mundo.Largo - 1 || y >= mundo.Alto - 1) continue;
+                        double d = (x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) * 1.4 + (z + 0.5 - cz) * (z + 0.5 - cz);
+                        if (d > radio * radio) continue;
+                        // No se abren cuevas que inunden los lagos ni que rompan la superficie bajo el agua.
+                        if (y >= superficies[x, z] - 1 && superficies[x, z] <= nivelAgua) continue;
+                        int arriba = mundo.ObtenerBloque(x, y + 1, z);
+                        if (arriba == agua || mundo.ObtenerBloque(x, y, z) == agua) continue;
+                        mundo.EstablecerBloque(x, y, z, y <= 5 && lava != 0 ? lava : 0);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Planta un árbol con la base en (x, suelo, z). Se usa al generar el terreno y cuando crece un brote.
+        /// "alCambiar" recibe cada celda modificada. Devuelve false si no hay espacio.
+        /// </summary>
+        public static bool PlantarArbol(Mundo mundo, int x, int suelo, int z, Random azar, Action<int, int, int> alCambiar)
+        {
+            int tierra = CatalogoBloques.PorNombre("Tierra").IdTipoBloque;
+            int tronco = CatalogoBloques.PorNombre("Tronco").IdTipoBloque;
+            int hojas = CatalogoBloques.PorNombre("Hojas").IdTipoBloque;
+            int altura = 4 + azar.Next(3);
+            if (suelo + altura + 2 >= mundo.Alto) return false;
+            for (int y = suelo + 1; y <= suelo + altura; y++)
+            {
+                int id = mundo.ObtenerBloque(x, y, z);
+                if (id != 0 && CatalogoBloques.Obtener(id) != null && CatalogoBloques.Obtener(id).Categoria != TipoBloque.Planta) return false;
+            }
+
+            Action<int, int, int, int> poner = (px, py, pz, id) =>
+            {
+                if (!mundo.EstaDentro(px, py, pz)) return;
+                mundo.EstablecerBloque(px, py, pz, id);
+                if (alCambiar != null) alCambiar(px, py, pz);
+            };
+            poner(x, suelo, z, tierra);
+            int cima = suelo + altura;
+            for (int y = cima - 2; y <= cima + 1; y++)
+            {
+                int radio = y <= cima - 1 ? 2 : 1;
+                for (int dx = -radio; dx <= radio; dx++)
+                {
+                    for (int dz = -radio; dz <= radio; dz++)
+                    {
+                        bool esquina = Math.Abs(dx) == radio && Math.Abs(dz) == radio;
+                        if (esquina && (y == cima + 1 || azar.Next(2) == 0)) continue;
+                        if (mundo.ObtenerBloque(x + dx, y, z + dz) == 0) poner(x + dx, y, z + dz, hojas);
+                    }
+                }
+            }
+            for (int y = suelo + 1; y <= cima; y++) poner(x, y, z, tronco);
+            return true;
         }
 
         /// <summary>Ruido de valor 2D con interpolación suave, determinado por la semilla.</summary>

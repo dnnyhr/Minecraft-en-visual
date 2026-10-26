@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using BlockForge.Models;
@@ -45,7 +46,7 @@ namespace BlockForge.Controls
         }
 
         private PartidaRed red;
-        private float tiempoPosicion;
+        private float tiempoPosicion, tiempoMobs;
         private Vec3 ultimaPosicionEnviada = new Vec3(float.NaN, 0, 0);
         private float ultimoGiroEnviado, ultimaInclinacionEnviada;
         private bool chatAbierto, inventarioAbierto;
@@ -53,6 +54,7 @@ namespace BlockForge.Controls
         private readonly List<LineaChat> lineasChat = new List<LineaChat>();
         private readonly List<BotonHud> botones = new List<BotonHud>();
         private readonly List<KeyValuePair<RectangleF, TipoBloque>> celdasInventario = new List<KeyValuePair<RectangleF, TipoBloque>>();
+        private readonly List<KeyValuePair<RectangleF, Receta>> recetasInventario = new List<KeyValuePair<RectangleF, Receta>>();
         private RectangleF panelInventario;
         private Point posicionMouse;
         private float[] matrizVista = Matriz.Identidad();
@@ -113,7 +115,13 @@ namespace BlockForge.Controls
             red = partida;
             red.BloqueRecibido += AlRecibirBloque;
             red.ChatRecibido += AlRecibirChat;
+            red.MobsRecibidos += AlRecibirMobs;
+            red.MobAtacado += AlAtacarMobRemoto;
+            red.DanoRecibido += AlRecibirDano;
+            red.ExplosionRecibida += AlRecibirExplosion;
+            red.RecompensaRecibida += AlRecibirRecompensa;
             ultimaPosicionEnviada = new Vec3(float.NaN, 0, 0);
+            if (!red.EsAnfitrion) mobs.Mobs.Clear(); // los mobs del invitado los manda el anfitrión
         }
 
         public void DesconectarRed()
@@ -121,7 +129,42 @@ namespace BlockForge.Controls
             if (red == null) return;
             red.BloqueRecibido -= AlRecibirBloque;
             red.ChatRecibido -= AlRecibirChat;
+            red.MobsRecibidos -= AlRecibirMobs;
+            red.MobAtacado -= AlAtacarMobRemoto;
+            red.DanoRecibido -= AlRecibirDano;
+            red.ExplosionRecibida -= AlRecibirExplosion;
+            red.RecompensaRecibida -= AlRecibirRecompensa;
             red = null;
+        }
+
+        private void AlRecibirMobs(byte[] datos)
+        {
+            using (System.IO.BinaryReader r = new System.IO.BinaryReader(new System.IO.MemoryStream(datos)))
+            {
+                float hora = mobs.AplicarEstado(r);
+                ciclo.Hora = hora;
+            }
+        }
+
+        private void AlAtacarMobRemoto(int jugadorId, Vec3 desde, int idMob, float dano)
+        {
+            Mob m = mobs.Mobs.FirstOrDefault(x => x.Id == idMob);
+            if (m != null && (m.Posicion - desde).Longitud < 6f) mobs.Danar(m, dano, desde, jugadorId);
+        }
+
+        private void AlRecibirDano(float dano, Vec3 desde)
+        {
+            RecibirDano(dano, desde, "por un mob");
+        }
+
+        private void AlRecibirExplosion(Vec3 centro, float radio)
+        {
+            Explotar(centro, radio, false);
+        }
+
+        private void AlRecibirRecompensa(string tipo, int cantidad)
+        {
+            Dar(tipo, cantidad, true);
         }
 
         /// <summary>Libera las texturas de skins (necesita el contexto GL activo).</summary>
@@ -182,6 +225,16 @@ namespace BlockForge.Controls
             red.Procesar();
             if (red == null) return; // el formulario pudo cerrar la partida al perder la conexión
             foreach (JugadorRemoto j in red.Jugadores) j.Interpolar(dt);
+            if (red.EsAnfitrion)
+            {
+                tiempoMobs -= dt;
+                if (tiempoMobs <= 0)
+                {
+                    tiempoMobs = 0.1f;
+                    red.EnviarMobs(mobs.Estado(ciclo.Hora));
+                }
+            }
+            else mobs.Interpolar(dt);
 
             tiempoPosicion -= dt;
             Vec3 p = jugador.Posicion;
@@ -240,11 +293,7 @@ namespace BlockForge.Controls
 
         private void AbrirChat()
         {
-            if (red == null)
-            {
-                Avisar("El chat funciona en multijugador: abre el mundo a la red o a internet desde el menú de pausa (Esc).", Color.FromArgb(255, 225, 120), 5f);
-                return;
-            }
+            if (red == null) Avisar("Solo jugador: el chat sirve para comandos (/dia, /noche, /pacifico).", Color.FromArgb(255, 225, 120), 4f);
             chatAbierto = true;
             entradaChat.Clear();
             botonIzquierdo = botonDerecho = false;
@@ -259,13 +308,40 @@ namespace BlockForge.Controls
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                if (entradaChat.Length > 0 && red != null) red.EnviarChat(entradaChat.ToString());
+                string linea = entradaChat.ToString().Trim();
+                if (linea.Length > 0 && !ComandoJuego(linea) && red != null) red.EnviarChat(linea);
                 chatAbierto = false;
             }
             else if (e.KeyCode == Keys.Back && entradaChat.Length > 0)
             {
                 entradaChat.Length--;
             }
+        }
+
+        /// <summary>Comandos del juego (solo quien juega solo o el anfitrión). Devuelve true si lo era.</summary>
+        private bool ComandoJuego(string linea)
+        {
+            string orden = linea.ToLowerInvariant();
+            if (orden != "/dia" && orden != "/noche" && orden != "/pacifico" && orden != "/ayuda")
+            {
+                if (red == null && orden.StartsWith("/")) Avisar("Comandos: /dia, /noche, /pacifico", Color.FromArgb(255, 225, 120));
+                return red == null;
+            }
+            if (orden == "/ayuda")
+            {
+                AgregarChat("Comandos: /dia, /noche, /pacifico" + (red != null && red.EsAnfitrion ? ", /jugadores, /expulsar nombre" : ""), Color.FromArgb(255, 225, 120));
+                return true;
+            }
+            if (red != null && !red.EsAnfitrion)
+            {
+                Avisar("Solo el anfitrión puede cambiar la hora o la dificultad.", Color.FromArgb(255, 200, 110));
+                return true;
+            }
+            if (orden == "/dia") ciclo.Hora = 0.02f;
+            else if (orden == "/noche") ciclo.Hora = 0.6f;
+            else Pacifico = !Pacifico;
+            if (orden != "/pacifico") Avisar(orden == "/dia" ? "Ahora es de día." : "Ahora es de noche: cuidado con los mobs.", Color.White);
+            return true;
         }
 
         private void CaracterChat(char c)
@@ -295,16 +371,25 @@ namespace BlockForge.Controls
                 foreach (KeyValuePair<RectangleF, TipoBloque> celda in celdasInventario)
                 {
                     if (!celda.Key.Contains(p)) continue;
-                    int indice = ranuras.FindIndex(t => t.IdTipoBloque == celda.Value.IdTipoBloque);
-                    if (indice >= 0)
+                    if (celda.Value.Categoria == TipoBloque.Liquido)
                     {
-                        SeleccionarRanura(indice);
-                        CerrarInventario();
+                        Avisar("El " + celda.Value.Nombre.ToLowerInvariant() + " no se puede llevar.", Color.FromArgb(255, 200, 110));
+                        return true;
                     }
-                    else
+                    PonerEnBarra(celda.Value);
+                    return true;
+                }
+                foreach (KeyValuePair<RectangleF, Receta> receta in recetasInventario)
+                {
+                    if (!receta.Key.Contains(p)) continue;
+                    if (Recetas.Fabricar(receta.Value, juego.Inventario))
                     {
-                        Avisar("El " + celda.Value.Nombre.ToLowerInvariant() + " no se puede colocar.", Color.FromArgb(255, 200, 110));
+                        juego.HayCambios = true;
+                        AlRecolectar(CatalogoBloques.Tipos.FirstOrDefault(x => x.Nombre == receta.Value.Resultado));
+                        Avisar("Fabricaste " + receta.Value.Cantidad + " " + receta.Value.Resultado.ToLowerInvariant() + ".", Color.FromArgb(170, 240, 140), 2f);
+                        NotificarEstado();
                     }
+                    else Avisar("Te faltan materiales: " + receta.Value.Descripcion + ".", Color.FromArgb(255, 200, 110));
                     return true;
                 }
                 if (!panelInventario.Contains(p)) CerrarInventario();
@@ -316,6 +401,7 @@ namespace BlockForge.Controls
                 if (!b.Area.Contains(p)) continue;
                 if (!b.Habilitado) return true;
                 if (b.Accion == "continuar") CapturarMouse();
+                else if (b.Accion == "reaparecer") Revivir();
                 else if (b.Accion == "copiar")
                 {
                     try
@@ -414,7 +500,8 @@ namespace BlockForge.Controls
             if (tab) DibujarListaJugadores(ancho, alto, escala);
 
             botones.Clear();
-            if (inventarioAbierto) DibujarInventario(ancho, alto, escala);
+            if (vida.Muerto) DibujarMuerte(ancho, alto, escala);
+            else if (inventarioAbierto) DibujarInventario(ancho, alto, escala);
             else if (!capturado) DibujarMenuPausa(ancho, alto, escala);
         }
 
@@ -536,46 +623,94 @@ namespace BlockForge.Controls
         private void DibujarInventario(int ancho, int alto, float escala)
         {
             Rectangulo(0, 0, ancho, alto, Color.FromArgb(120, 0, 0, 0));
-            IList<TipoBloque> tipos = CatalogoBloques.Tipos;
-            const int columnas = 5;
+            List<TipoBloque> tipos = new List<TipoBloque>();
+            foreach (TipoBloque tb in CatalogoBloques.Tipos)
+            {
+                if (tb.Categoria != TipoBloque.Liquido) tipos.Add(tb);
+            }
+            List<Receta> recetas = new List<Receta>(Recetas.Disponibles());
+
             float t = 14 * escala;
-            float cw = 104 * escala, ch = 112 * escala, sep = 8 * escala;
+            const int columnas = 9;
+            float lado = 54 * escala, sep = 6 * escala, margen = 20 * escala;
             int filas = (tipos.Count + columnas - 1) / columnas;
-            float pw = columnas * cw + (columnas - 1) * sep + 40 * escala;
-            float ph = filas * ch + (filas - 1) * sep + 120 * escala;
+            float anchoCuadricula = columnas * lado + (columnas - 1) * sep;
+            float anchoRecetas = 330 * escala, filaReceta = 40 * escala;
+            float pw = margen * 3 + anchoCuadricula + anchoRecetas;
+            float ph = Math.Max(filas * (lado + sep), recetas.Count * filaReceta) + 150 * escala;
+            // Si no cabe en la ventana se achica todo.
+            float k = Math.Min(1f, Math.Min((ancho - 20) / pw, (alto - 20) / ph));
+            if (k < 1f)
+            {
+                t *= k; lado *= k; sep *= k; margen *= k; anchoCuadricula *= k; anchoRecetas *= k; filaReceta *= k; pw *= k; ph *= k;
+            }
             float px = (ancho - pw) / 2f, py = (alto - ph) / 2f;
             panelInventario = new RectangleF(px, py, pw, ph);
             Panel(px, py, px + pw, py + ph, Color.FromArgb(235, 28, 31, 38));
-            Escribir("Inventario", px + 20 * escala, py + 14 * escala, t * 1.6f, Color.White, true);
-            Escribir("Haz clic en un bloque para usarlo · E o Esc para cerrar", px + pw - 20 * escala, py + 20 * escala, t * 0.85f,
+            Escribir("Inventario", px + margen, py + 14 * escala * k, t * 1.6f, Color.White, true);
+            Escribir("Clic: poner en la barra · E o Esc: cerrar", px + margen + anchoCuadricula, py + 22 * escala * k, t * 0.85f,
                      Color.FromArgb(180, 180, 180), false, 2);
 
             celdasInventario.Clear();
-            float gx = px + 20 * escala, gy = py + 64 * escala;
+            recetasInventario.Clear();
+            string descripcion = null;
+            float gx = px + margen, gy = py + 64 * escala * k;
+            GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
             for (int i = 0; i < tipos.Count; i++)
             {
                 TipoBloque tipo = tipos[i];
-                float x = gx + (i % columnas) * (cw + sep), y = gy + (i / columnas) * (ch + sep);
-                RectangleF celda = new RectangleF(x, y, cw, ch);
+                float x = gx + (i % columnas) * (lado + sep), y = gy + (i / columnas) * (lado + sep);
+                RectangleF celda = new RectangleF(x, y, lado, lado);
                 celdasInventario.Add(new KeyValuePair<RectangleF, TipoBloque>(celda, tipo));
                 bool activo = TipoActivo != null && TipoActivo.IdTipoBloque == tipo.IdTipoBloque;
                 bool encima = celda.Contains(posicionMouse);
                 int cantidad = juego.Inventario.ObtenerCantidad(tipo.IdTipoBloque);
-                Rectangulo(x, y, x + cw, y + ch, activo ? Color.FromArgb(255, 150, 220, 150) : encima ? Color.FromArgb(200, 140, 150, 170) : Color.FromArgb(160, 70, 76, 90));
-                Rectangulo(x + 2, y + 2, x + cw - 2, y + ch - 2, encima ? Color.FromArgb(240, 58, 64, 78) : Color.FromArgb(240, 40, 44, 54));
-
+                Rectangulo(x, y, x + lado, y + lado, activo ? Color.FromArgb(255, 150, 220, 150) : encima ? Color.FromArgb(220, 170, 180, 200) : Color.FromArgb(160, 70, 76, 90));
+                Rectangulo(x + 2, y + 2, x + lado - 2, y + lado - 2, encima ? Color.FromArgb(240, 62, 68, 84) : Color.FromArgb(240, 40, 44, 54));
                 GL.glEnable(GL.TEXTURE_2D);
                 GL.glEnable(GL.ALPHA_TEST);
                 GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
-                DibujarIcono(Atlas.Obtener(tipo.IdTipoBloque), x + cw / 2f, y + ch * 0.36f, cw * 0.22f, cantidad > 0 || !tipo.EsRecolectable ? 1f : 0.45f);
+                DibujarIcono(Atlas.Obtener(tipo.IdTipoBloque), x + lado / 2f, y + lado * 0.47f, lado * 0.24f, cantidad > 0 || !tipo.EsRecolectable ? 1f : 0.35f);
                 GL.glDisable(GL.ALPHA_TEST);
-                Escribir(tipo.Nombre, x + cw / 2f, y + ch * 0.62f, t, Color.White, true, 1);
-                Escribir(tipo.EsRecolectable ? "× " + cantidad : "no recolectable", x + cw / 2f, y + ch * 0.8f, t * 0.85f,
-                         tipo.EsRecolectable ? (cantidad > 0 ? Color.FromArgb(160, 230, 160) : Color.FromArgb(160, 160, 160)) : Color.FromArgb(140, 170, 220), false, 1);
+                if (tipo.EsRecolectable && cantidad > 0)
+                {
+                    Escribir(cantidad.ToString(), x + lado - 4, y + lado - t * 1.35f, t * 0.9f, Color.White, true, 2);
+                }
+                if (encima)
+                {
+                    descripcion = tipo.Nombre + (tipo.EsComida ? "  ·  comida (+" + tipo.Alimento / 2f + " muslos), mantén clic derecho para comer" :
+                                                 tipo.Categoria == TipoBloque.Material ? "  ·  material para fabricar" :
+                                                 !tipo.EsRecolectable ? "  ·  no se puede recolectar" : "  ·  tienes " + cantidad);
+                }
             }
 
-            Escribir("Total de bloques: " + juego.Inventario.Total() + "   ·   Capacidad máxima por tipo: " + Inventario.CapacidadMaxima,
-                     px + 20 * escala, py + ph - 34 * escala, t * 0.9f, Color.FromArgb(200, 200, 200));
+            // Fabricación
+            float rx = px + margen * 2 + anchoCuadricula, ry = gy;
+            Escribir("Fabricar", rx, py + 14 * escala * k, t * 1.6f, Color.White, true);
+            for (int i = 0; i < recetas.Count; i++)
+            {
+                Receta r = recetas[i];
+                RectangleF area = new RectangleF(rx, ry + i * filaReceta, anchoRecetas, filaReceta - 4 * k);
+                bool se = Recetas.SePuede(r, juego.Inventario);
+                bool encima = area.Contains(posicionMouse);
+                recetasInventario.Add(new KeyValuePair<RectangleF, Receta>(area, r));
+                Rectangulo(area.Left, area.Top, area.Right, area.Bottom, encima && se ? Color.FromArgb(235, 72, 130, 82) : se ? Color.FromArgb(215, 46, 60, 52) : Color.FromArgb(150, 40, 44, 52));
+                TipoBloque resultado = CatalogoBloques.Tipos.FirstOrDefault(x => x.Nombre == r.Resultado);
+                if (resultado != null)
+                {
+                    GL.glEnable(GL.TEXTURE_2D);
+                    GL.glEnable(GL.ALPHA_TEST);
+                    GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
+                    DibujarIcono(Atlas.Obtener(resultado.IdTipoBloque), area.Left + area.Height / 2f, area.Top + area.Height / 2f, area.Height * 0.24f, se ? 1f : 0.4f);
+                    GL.glDisable(GL.ALPHA_TEST);
+                }
+                Color c = se ? Color.White : Color.FromArgb(140, 140, 140);
+                Escribir(r.Cantidad + " " + r.Resultado, area.Left + area.Height + 4, area.Top + 2 * k, t * 0.95f, c, true);
+                Escribir(r.Descripcion, area.Left + area.Height + 4, area.Top + area.Height * 0.5f, t * 0.8f, se ? Color.FromArgb(190, 230, 190) : Color.FromArgb(120, 120, 120));
+            }
+
+            Escribir(descripcion ?? ("Total: " + juego.Inventario.Total() + " objetos · máximo " + Inventario.CapacidadMaxima + " por tipo"),
+                     px + margen, py + ph - 34 * escala * k, t * 0.9f, descripcion != null ? Color.FromArgb(255, 235, 160) : Color.FromArgb(200, 200, 200));
         }
 
         /// <summary>Panel con borde claro y fondo oscuro.</summary>

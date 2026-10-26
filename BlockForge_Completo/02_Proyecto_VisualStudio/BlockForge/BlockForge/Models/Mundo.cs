@@ -29,6 +29,12 @@ namespace BlockForge.Models
         public float JugadorGiro { get; set; }
         public float JugadorInclinacion { get; set; }
 
+        /// <summary>Hora del día de 0 a 1 (0 amanecer, 0,25 mediodía, 0,5 atardecer, 0,75 medianoche).</summary>
+        public float HoraDia { get; set; }
+        /// <summary>Vida (0 a 20) y hambre (0 a 20) guardadas del jugador; null si nunca se guardaron.</summary>
+        public float? JugadorVida { get; set; }
+        public float? JugadorHambre { get; set; }
+
         private byte[] celdas;
 
         public Mundo(int ancho, int alto, int largo)

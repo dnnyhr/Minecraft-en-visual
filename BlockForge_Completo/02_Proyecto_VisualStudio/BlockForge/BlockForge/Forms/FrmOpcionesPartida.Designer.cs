@@ -32,6 +32,8 @@ namespace BlockForge.Forms
             this.lblDescripcion = new System.Windows.Forms.Label();
             this.rdoLocal = new System.Windows.Forms.RadioButton();
             this.lblLocal = new System.Windows.Forms.Label();
+            this.rdoTunel = new System.Windows.Forms.RadioButton();
+            this.lblTunel = new System.Windows.Forms.Label();
             this.rdoInternet = new System.Windows.Forms.RadioButton();
             this.lblInternet = new System.Windows.Forms.Label();
             this.lblPuerto = new System.Windows.Forms.Label();
@@ -84,20 +86,38 @@ namespace BlockForge.Forms
             this.lblLocal.Size = new System.Drawing.Size(420, 20);
             this.lblLocal.Text = "Equipos conectados al mismo Wi-Fi o router. La partida aparece sola en su lista.";
             //
+            // rdoTunel
+            //
+            this.rdoTunel.AutoSize = true;
+            this.rdoTunel.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.rdoTunel.Location = new System.Drawing.Point(28, 140);
+            this.rdoTunel.Name = "rdoTunel";
+            this.rdoTunel.TabIndex = 1;
+            this.rdoTunel.Text = "Internet fácil (túnel de Cloudflare) — recomendado";
+            //
+            // lblTunel
+            //
+            this.lblTunel.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            this.lblTunel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(95)))), ((int)(((byte)(99)))), ((int)(((byte)(104)))));
+            this.lblTunel.Location = new System.Drawing.Point(46, 164);
+            this.lblTunel.Name = "lblTunel";
+            this.lblTunel.Size = new System.Drawing.Size(420, 34);
+            this.lblTunel.Text = "Sin tocar el router ni crear cuentas: se obtiene una dirección https://...trycloudflare.com para compartir. Funciona aunque tu proveedor use CGNAT.";
+            //
             // rdoInternet
             //
             this.rdoInternet.AutoSize = true;
             this.rdoInternet.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.rdoInternet.Location = new System.Drawing.Point(28, 140);
+            this.rdoInternet.Location = new System.Drawing.Point(28, 202);
             this.rdoInternet.Name = "rdoInternet";
             this.rdoInternet.TabIndex = 1;
-            this.rdoInternet.Text = "Internet";
+            this.rdoInternet.Text = "Internet abriendo un puerto (avanzado)";
             //
             // lblInternet
             //
             this.lblInternet.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.lblInternet.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(95)))), ((int)(((byte)(99)))), ((int)(((byte)(104)))));
-            this.lblInternet.Location = new System.Drawing.Point(46, 164);
+            this.lblInternet.Location = new System.Drawing.Point(46, 226);
             this.lblInternet.Name = "lblInternet";
             this.lblInternet.Size = new System.Drawing.Size(420, 50);
             this.lblInternet.Text = "Amigos en cualquier lugar. Se abre el puerto del router automáticamente (UPnP) y se muestra tu IP pública para que la compartas. Usa una contraseña.";
@@ -106,13 +126,13 @@ namespace BlockForge.Forms
             //
             this.lblPuerto.AutoSize = true;
             this.lblPuerto.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblPuerto.Location = new System.Drawing.Point(25, 226);
+            this.lblPuerto.Location = new System.Drawing.Point(25, 282);
             this.lblPuerto.Name = "lblPuerto";
             this.lblPuerto.Text = "Puerto TCP";
             //
             // nudPuerto
             //
-            this.nudPuerto.Location = new System.Drawing.Point(26, 249);
+            this.nudPuerto.Location = new System.Drawing.Point(26, 305);
             this.nudPuerto.Maximum = new decimal(new int[] {
             65535,
             0,
@@ -136,13 +156,13 @@ namespace BlockForge.Forms
             //
             this.lblMaximo.AutoSize = true;
             this.lblMaximo.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblMaximo.Location = new System.Drawing.Point(248, 226);
+            this.lblMaximo.Location = new System.Drawing.Point(248, 282);
             this.lblMaximo.Name = "lblMaximo";
             this.lblMaximo.Text = "Máximo de jugadores";
             //
             // nudMaximo
             //
-            this.nudMaximo.Location = new System.Drawing.Point(249, 249);
+            this.nudMaximo.Location = new System.Drawing.Point(249, 305);
             this.nudMaximo.Maximum = new decimal(new int[] {
             32,
             0,
@@ -166,13 +186,13 @@ namespace BlockForge.Forms
             //
             this.lblContrasena.AutoSize = true;
             this.lblContrasena.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-            this.lblContrasena.Location = new System.Drawing.Point(25, 288);
+            this.lblContrasena.Location = new System.Drawing.Point(25, 344);
             this.lblContrasena.Name = "lblContrasena";
             this.lblContrasena.Text = "Contraseña de la partida (opcional)";
             //
             // txtContrasena
             //
-            this.txtContrasena.Location = new System.Drawing.Point(26, 311);
+            this.txtContrasena.Location = new System.Drawing.Point(26, 367);
             this.txtContrasena.MaxLength = 40;
             this.txtContrasena.Name = "txtContrasena";
             this.txtContrasena.Size = new System.Drawing.Size(428, 25);
@@ -182,7 +202,7 @@ namespace BlockForge.Forms
             //
             this.lblNotaContrasena.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.lblNotaContrasena.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(95)))), ((int)(((byte)(99)))), ((int)(((byte)(104)))));
-            this.lblNotaContrasena.Location = new System.Drawing.Point(26, 340);
+            this.lblNotaContrasena.Location = new System.Drawing.Point(26, 396);
             this.lblNotaContrasena.Name = "lblNotaContrasena";
             this.lblNotaContrasena.Size = new System.Drawing.Size(428, 36);
             this.lblNotaContrasena.Text = "Compártela solo con tus amigos. En la partida puedes escribir /expulsar nombre en el chat.";
@@ -195,7 +215,7 @@ namespace BlockForge.Forms
             this.btnCancelar.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCancelar.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.btnCancelar.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
-            this.btnCancelar.Location = new System.Drawing.Point(222, 392);
+            this.btnCancelar.Location = new System.Drawing.Point(222, 446);
             this.btnCancelar.Name = "btnCancelar";
             this.btnCancelar.Size = new System.Drawing.Size(112, 36);
             this.btnCancelar.TabIndex = 6;
@@ -211,7 +231,7 @@ namespace BlockForge.Forms
             this.btnAbrir.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnAbrir.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.btnAbrir.ForeColor = System.Drawing.Color.White;
-            this.btnAbrir.Location = new System.Drawing.Point(342, 392);
+            this.btnAbrir.Location = new System.Drawing.Point(342, 446);
             this.btnAbrir.Name = "btnAbrir";
             this.btnAbrir.Size = new System.Drawing.Size(112, 36);
             this.btnAbrir.TabIndex = 5;
@@ -226,7 +246,7 @@ namespace BlockForge.Forms
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(244)))), ((int)(((byte)(241)))), ((int)(((byte)(234)))));
             this.CancelButton = this.btnCancelar;
-            this.ClientSize = new System.Drawing.Size(480, 448);
+            this.ClientSize = new System.Drawing.Size(480, 502);
             this.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
@@ -239,6 +259,8 @@ namespace BlockForge.Forms
             this.Controls.Add(this.lblDescripcion);
             this.Controls.Add(this.rdoLocal);
             this.Controls.Add(this.lblLocal);
+            this.Controls.Add(this.rdoTunel);
+            this.Controls.Add(this.lblTunel);
             this.Controls.Add(this.rdoInternet);
             this.Controls.Add(this.lblInternet);
             this.Controls.Add(this.lblPuerto);
@@ -263,6 +285,8 @@ namespace BlockForge.Forms
         private System.Windows.Forms.Label lblDescripcion;
         private System.Windows.Forms.RadioButton rdoLocal;
         private System.Windows.Forms.Label lblLocal;
+        private System.Windows.Forms.RadioButton rdoTunel;
+        private System.Windows.Forms.Label lblTunel;
         private System.Windows.Forms.RadioButton rdoInternet;
         private System.Windows.Forms.Label lblInternet;
         private System.Windows.Forms.Label lblPuerto;

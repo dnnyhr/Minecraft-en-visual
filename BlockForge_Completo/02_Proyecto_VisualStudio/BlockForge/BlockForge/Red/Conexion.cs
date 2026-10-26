@@ -12,8 +12,8 @@ namespace BlockForge.Red
     /// </summary>
     internal class Conexion : IDisposable
     {
-        private readonly TcpClient cliente;
-        private readonly NetworkStream flujo;
+        private readonly Stream flujo;
+        private readonly Action cerrarTransporte;
         private readonly BlockingCollection<byte[]> salida = new BlockingCollection<byte[]>();
         private ConcurrentQueue<Mensaje> entrada;
         private int cerrada;
@@ -28,12 +28,24 @@ namespace BlockForge.Red
         public int LimiteMensaje { get; set; }
 
         public Conexion(TcpClient cliente)
+            : this(cliente.GetStream(), cliente.Close, cliente.Client.RemoteEndPoint != null ? cliente.Client.RemoteEndPoint.ToString() : "?")
         {
-            this.cliente = cliente;
             cliente.NoDelay = true;
-            flujo = cliente.GetStream();
+        }
+
+        /// <summary>Conexión sobre cualquier flujo (TCP directo o WebSocket de un túnel).</summary>
+        public Conexion(Stream flujo, Action cerrar, string direccion)
+        {
+            this.flujo = flujo;
+            cerrarTransporte = cerrar;
             LimiteMensaje = Protocolo.TamanoMaximo;
-            Direccion = cliente.Client.RemoteEndPoint != null ? cliente.Client.RemoteEndPoint.ToString() : "?";
+            Direccion = direccion;
+        }
+
+        /// <summary>Tiempo máximo de espera de las lecturas (solo durante el saludo; 0 = sin límite).</summary>
+        public int TiempoLectura
+        {
+            set { if (flujo.CanTimeout) flujo.ReadTimeout = value <= 0 ? Timeout.Infinite : value; }
         }
 
         public bool Abierta
@@ -157,7 +169,8 @@ namespace BlockForge.Red
         {
             if (Interlocked.Exchange(ref cerrada, 1) == 1) return;
             try { salida.CompleteAdding(); } catch (Exception) { }
-            try { cliente.Close(); } catch (Exception) { }
+            try { flujo.Dispose(); } catch (Exception) { }
+            try { cerrarTransporte(); } catch (Exception) { }
             if (entrada != null) entrada.Enqueue(new Mensaje { Tipo = TipoMensaje.Desconexion, Origen = this });
         }
 

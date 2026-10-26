@@ -95,6 +95,15 @@ namespace BlockForge.Forms
         private static bool Interpretar(string texto, out string servidor, out int puerto)
         {
             servidor = (texto ?? string.Empty).Trim();
+            // Invitación por túnel (Cloudflare o ngrok): una dirección https://... que se usa tal cual.
+            System.Text.RegularExpressions.Match url = System.Text.RegularExpressions.Regex.Match(servidor, @"(?i)\b(https?|wss?)://[A-Za-z0-9.\-]+(:\d{1,5})?/?");
+            if (!url.Success) url = System.Text.RegularExpressions.Regex.Match(servidor, @"(?i)\b[a-z0-9\-]+\.(trycloudflare\.com|ngrok-free\.app|ngrok\.app|ngrok\.io)\b(?!:)");
+            if (url.Success && !servidor.Contains("tcp.ngrok"))
+            {
+                servidor = url.Value.Contains("://") ? url.Value : "https://" + url.Value;
+                puerto = 0;
+                return true;
+            }
             System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(servidor, @"[A-Za-z0-9.\-]+:\d{1,5}");
             if (m.Success) servidor = m.Value;
             else if (servidor.Contains(" ")) servidor = servidor.Split(' ').Last(t => t.Length > 0);
@@ -125,11 +134,11 @@ namespace BlockForge.Forms
             {
                 Cursor = Cursors.WaitCursor;
                 btnUnirse.Enabled = false;
-                lblError.Text = "Conectando con " + servidor + ":" + puerto + "...";
+                lblError.Text = "Conectando con " + (puerto > 0 ? servidor + ":" + puerto : servidor) + "...";
                 lblError.Refresh();
                 Mundo mundo;
                 Skin skin = Sesion.UsuarioActual != null ? Sesion.UsuarioActual.Skin : null;
-                Partida = PartidaRed.Unirse(servidor, puerto, NombreJugador, txtClave.Text, skin, 10000, out mundo);
+                Partida = PartidaRed.Unirse(servidor, puerto, NombreJugador, txtClave.Text, skin, 15000, out mundo);
                 MundoRecibido = mundo;
                 DialogResult = DialogResult.OK;
                 Close();

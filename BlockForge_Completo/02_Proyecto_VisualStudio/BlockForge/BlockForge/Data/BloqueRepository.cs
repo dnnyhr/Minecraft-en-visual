@@ -36,7 +36,8 @@ namespace BlockForge.Data
         public void Reemplazar(SqlConnection conexion, SqlTransaction transaccion, Mundo mundo)
         {
             const string sql = @"UPDATE Mundo SET Bloques = @bloques, JugadorX = @x, JugadorY = @y, JugadorZ = @z,
-                                        JugadorGiro = @giro, JugadorInclinacion = @inclinacion
+                                        JugadorGiro = @giro, JugadorInclinacion = @inclinacion,
+                                        HoraDia = @hora, JugadorVida = @vida, JugadorHambre = @hambre
                                  WHERE IdMundo = @id";
             using (SqlCommand comando = new SqlCommand(sql, conexion, transaccion))
             {
@@ -46,6 +47,9 @@ namespace BlockForge.Data
                 comando.Parameters.AddWithValue("@z", (object)mundo.JugadorZ ?? DBNull.Value);
                 comando.Parameters.AddWithValue("@giro", mundo.JugadorGiro);
                 comando.Parameters.AddWithValue("@inclinacion", mundo.JugadorInclinacion);
+                comando.Parameters.AddWithValue("@hora", mundo.HoraDia);
+                comando.Parameters.AddWithValue("@vida", (object)mundo.JugadorVida ?? DBNull.Value);
+                comando.Parameters.AddWithValue("@hambre", (object)mundo.JugadorHambre ?? DBNull.Value);
                 comando.Parameters.AddWithValue("@id", mundo.IdMundo);
                 comando.ExecuteNonQuery();
             }

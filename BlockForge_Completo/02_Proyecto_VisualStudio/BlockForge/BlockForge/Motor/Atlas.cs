@@ -14,7 +14,13 @@ namespace BlockForge.Motor
         /// <summary>Con píxeles transparentes (hojas): se dibuja con prueba alfa.</summary>
         Recortado,
         /// <summary>Translúcido y no sólido (agua): se dibuja en una segunda pasada.</summary>
-        Liquido
+        Liquido,
+        /// <summary>Líquido opaco y luminoso (lava): forma de líquido pero en la pasada opaca.</summary>
+        Lava,
+        /// <summary>Dos planos cruzados (flores, hierba, brotes, antorchas).</summary>
+        Planta,
+        /// <summary>Recortado que no dibuja las caras entre bloques iguales (vidrio).</summary>
+        Vidrio
     }
 
     internal class Apariencia
@@ -22,18 +28,34 @@ namespace BlockForge.Motor
         public int Arriba, Lado, Abajo;
         public ModoDibujo Modo;
         public bool Solido;
+        /// <summary>Luz que emite (0 a 15).</summary>
+        public int Luz;
+        /// <summary>Se muestra como un dibujo plano (plantas, comida y materiales) en lugar de un cubo.</summary>
+        public bool Plano;
+        public int Icono;
+        /// <summary>Deja pasar la luz del sol (aire, vidrio, plantas, antorchas).</summary>
+        public bool DejaPasarSol;
     }
 
     /// <summary>
     /// Atlas de texturas de 16×16 píxeles por bloque, generado por código (pixel art procedural),
     /// así el proyecto no depende de archivos de texturas externos.
     /// </summary>
-    internal static class Atlas
+    internal static partial class Atlas
     {
         public const int Tile = 16, TilesPorFila = 16, Tamano = Tile * TilesPorFila;
 
         private const int PastoArriba = 0, PastoLado = 1, Tierra = 2, Piedra = 3, Madera = 4, Agua = 5, Arena = 6,
-                          TroncoLado = 7, TroncoArriba = 8, Hojas = 9, Grava = 10, PrimerTileLibre = 16;
+                          TroncoLado = 7, TroncoArriba = 8, Hojas = 9, Grava = 10, PrimerTileLibre = 80;
+
+        // Tiles nuevos (bloques de construcción, plantas, comida e íconos del HUD).
+        public const int Lava = 11, MineralCarbon = 12, Arcilla = 13, MaderaOscura = 14, Ladrillo = 15, LadrillosPiedra = 16,
+                         PiedraLisa = 17, Terracota = 18, Vidrio = 19, LanaBlanca = 20, LanaRoja = 21, LanaAmarilla = 22,
+                         LanaAzul = 23, LanaNegra = 24, EstanteriaLado = 25, Lampara = 26, Antorcha = 27, Rosa = 28,
+                         DienteLeon = 29, Aciano = 30, HierbaAlta = 31, Brote = 32, Carbon = 33, Manzana = 34,
+                         ChuletaCruda = 35, ChuletaCocida = 36, FileteCrudo = 37, FileteCocido = 38, PolloCrudo = 39,
+                         PolloCocido = 40, CarnePodrida = 41, CorazonLleno = 42, CorazonMedio = 43, CorazonVacio = 44,
+                         MusloLleno = 45, MusloMedio = 46, MusloVacio = 47, Burbuja = 48, Sol = 49, Luna = 50;
 
         public static readonly Apariencia[] PorId = new Apariencia[256];
         public static uint Textura { get; private set; }
@@ -67,36 +89,44 @@ namespace BlockForge.Motor
             DibujarTroncoArriba(TroncoArriba);
             DibujarHojas(Hojas);
             DibujarGrava(Grava);
+            DibujarNuevos();
         }
 
         private static void ConfigurarTipos(IList<TipoBloque> tipos)
         {
             for (int i = 0; i < PorId.Length; i++) PorId[i] = null;
-            PorId[0] = new Apariencia { Modo = ModoDibujo.Aire };
+            PorId[0] = new Apariencia { Modo = ModoDibujo.Aire, DejaPasarSol = true };
             int libre = PrimerTileLibre;
             foreach (TipoBloque tipo in tipos)
             {
                 if (tipo.IdTipoBloque <= 0 || tipo.IdTipoBloque > 255) continue;
-                Apariencia a = new Apariencia { Modo = ModoDibujo.Opaco, Solido = tipo.EsSolido };
+                Apariencia a = new Apariencia { Modo = ModoDibujo.Opaco, Solido = tipo.EsSolido, Luz = tipo.Luz };
+                int unico = TileUnico(tipo.Nombre);
+                if (unico >= 0) a.Arriba = a.Lado = a.Abajo = unico;
                 switch (tipo.Nombre.ToLowerInvariant())
                 {
                     case "pasto": a.Arriba = PastoArriba; a.Lado = PastoLado; a.Abajo = Tierra; break;
-                    case "tierra": a.Arriba = a.Lado = a.Abajo = Tierra; break;
-                    case "piedra": a.Arriba = a.Lado = a.Abajo = Piedra; break;
-                    case "madera": a.Arriba = a.Lado = a.Abajo = Madera; break;
-                    case "agua": a.Arriba = a.Lado = a.Abajo = Agua; a.Modo = ModoDibujo.Liquido; break;
-                    case "arena": a.Arriba = a.Lado = a.Abajo = Arena; break;
+                    case "agua": a.Modo = ModoDibujo.Liquido; break;
+                    case "lava": a.Modo = ModoDibujo.Lava; break;
                     case "tronco": a.Arriba = a.Abajo = TroncoArriba; a.Lado = TroncoLado; break;
-                    case "hojas": a.Arriba = a.Lado = a.Abajo = Hojas; a.Modo = ModoDibujo.Recortado; break;
-                    case "grava": a.Arriba = a.Lado = a.Abajo = Grava; break;
+                    case "hojas": a.Modo = ModoDibujo.Recortado; break;
+                    case "vidrio": a.Modo = ModoDibujo.Vidrio; break;
+                    case "estantería": a.Arriba = a.Abajo = Madera; a.Lado = EstanteriaLado; break;
                     default:
-                        // Tipos agregados en la base de datos sin textura propia: se usa su color.
-                        int tile = libre < TilesPorFila * TilesPorFila ? libre++ : Piedra;
-                        if (tile != Piedra) DibujarLiso(tile, tipo.Color, tipo.IdTipoBloque);
-                        a.Arriba = a.Lado = a.Abajo = tile;
-                        if (!tipo.EsSolido) a.Modo = ModoDibujo.Liquido;
+                        if (unico < 0)
+                        {
+                            // Tipos agregados en la base de datos sin textura propia: se usa su color.
+                            int tile = libre < TilesPorFila * TilesPorFila ? libre++ : Piedra;
+                            if (tile != Piedra) DibujarLiso(tile, tipo.Color, tipo.IdTipoBloque);
+                            a.Arriba = a.Lado = a.Abajo = tile;
+                            if (tipo.Categoria == TipoBloque.Liquido) a.Modo = ModoDibujo.Liquido;
+                        }
                         break;
                 }
+                if (tipo.Categoria == TipoBloque.Planta) a.Modo = ModoDibujo.Planta;
+                a.Plano = tipo.Categoria == TipoBloque.Planta || tipo.Categoria == TipoBloque.Comida || tipo.Categoria == TipoBloque.Material;
+                a.Icono = a.Lado;
+                a.DejaPasarSol = a.Modo == ModoDibujo.Planta || a.Modo == ModoDibujo.Vidrio;
                 PorId[tipo.IdTipoBloque] = a;
             }
         }
@@ -134,17 +164,62 @@ namespace BlockForge.Motor
         /// <summary>Tiles de arriba y de los lados de un bloque según su nombre (sin necesitar el catálogo).</summary>
         public static void TilesPorNombre(string nombre, out int arriba, out int lado)
         {
+            int unico = TileUnico(nombre);
+            arriba = lado = unico >= 0 ? unico : Piedra;
             switch ((nombre ?? "").ToLowerInvariant())
             {
                 case "pasto": arriba = PastoArriba; lado = PastoLado; break;
-                case "tierra": arriba = lado = Tierra; break;
-                case "madera": arriba = lado = Madera; break;
-                case "agua": arriba = lado = Agua; break;
-                case "arena": arriba = lado = Arena; break;
                 case "tronco": arriba = TroncoArriba; lado = TroncoLado; break;
-                case "hojas": arriba = lado = Hojas; break;
-                case "grava": arriba = lado = Grava; break;
-                default: arriba = lado = Piedra; break;
+                case "estantería": arriba = Madera; lado = EstanteriaLado; break;
+            }
+        }
+
+        /// <summary>Tile de un tipo que usa la misma textura en todas sus caras (o -1 si no tiene una propia).</summary>
+        private static int TileUnico(string nombre)
+        {
+            switch ((nombre ?? "").ToLowerInvariant())
+            {
+                case "pasto": return PastoArriba;
+                case "tierra": return Tierra;
+                case "piedra": return Piedra;
+                case "madera": return Madera;
+                case "agua": return Agua;
+                case "arena": return Arena;
+                case "tronco": return TroncoLado;
+                case "hojas": return Hojas;
+                case "grava": return Grava;
+                case "lava": return Lava;
+                case "mineral de carbón": return MineralCarbon;
+                case "arcilla": return Arcilla;
+                case "madera oscura": return MaderaOscura;
+                case "ladrillo": return Ladrillo;
+                case "ladrillos de piedra": return LadrillosPiedra;
+                case "piedra lisa": return PiedraLisa;
+                case "terracota": return Terracota;
+                case "vidrio": return Vidrio;
+                case "lana blanca": return LanaBlanca;
+                case "lana roja": return LanaRoja;
+                case "lana amarilla": return LanaAmarilla;
+                case "lana azul": return LanaAzul;
+                case "lana negra": return LanaNegra;
+                case "estantería": return EstanteriaLado;
+                case "lámpara": return Lampara;
+                case "antorcha": return Antorcha;
+                case "rosa": return Rosa;
+                case "diente de león": return DienteLeon;
+                case "aciano": return Aciano;
+                case "hierba alta": return HierbaAlta;
+                case "brote": return Brote;
+                case "carbón": return Carbon;
+                case "manzana": return Manzana;
+                case "chuleta cruda": return ChuletaCruda;
+                case "chuleta cocida": return ChuletaCocida;
+                case "filete crudo": return FileteCrudo;
+                case "filete cocido": return FileteCocido;
+                case "pollo crudo": return PolloCrudo;
+                case "pollo cocido": return PolloCocido;
+                case "carne podrida": return CarnePodrida;
+                default: return -1;
             }
         }
 

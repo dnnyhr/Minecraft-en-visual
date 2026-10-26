@@ -21,11 +21,12 @@ namespace BlockForge.Forms
             Opciones = new OpcionesPartida
             {
                 Internet = rdoInternet.Checked,
+                Tunel = rdoTunel.Checked,
                 Puerto = (int)nudPuerto.Value,
                 MaximoJugadores = (int)nudMaximo.Value,
                 Contrasena = txtContrasena.Text.Trim()
             };
-            if (Opciones.Internet && Opciones.Contrasena.Length == 0 &&
+            if ((Opciones.Internet || Opciones.Tunel) && Opciones.Contrasena.Length == 0 &&
                 MessageBox.Show("La partida estará abierta a internet sin contraseña: cualquiera que conozca tu dirección podrá entrar.\n\n¿Continuar sin contraseña?",
                                 "BlockForge", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
             {

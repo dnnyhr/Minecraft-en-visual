@@ -9,7 +9,7 @@ namespace BlockForge.Data
         public List<TipoBloque> ObtenerTodos()
         {
             List<TipoBloque> tipos = new List<TipoBloque>();
-            const string sql = @"SELECT IdTipoBloque, Nombre, ColorHex, EsSolido, EsRecolectable
+            const string sql = @"SELECT IdTipoBloque, Nombre, ColorHex, EsSolido, EsRecolectable, Categoria, Alimento, Luz
                                  FROM TipoBloque ORDER BY IdTipoBloque";
             using (SqlConnection conexion = Conexion.Abrir())
             using (SqlCommand comando = new SqlCommand(sql, conexion))
@@ -23,7 +23,10 @@ namespace BlockForge.Data
                         Nombre = lector.GetString(1),
                         ColorHex = lector.GetString(2).Trim(),
                         EsSolido = lector.GetBoolean(3),
-                        EsRecolectable = lector.GetBoolean(4)
+                        EsRecolectable = lector.GetBoolean(4),
+                        Categoria = lector.GetString(5).Trim(),
+                        Alimento = lector.GetInt32(6),
+                        Luz = lector.GetInt32(7)
                     });
                 }
             }
