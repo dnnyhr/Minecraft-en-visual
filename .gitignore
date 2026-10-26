@@ -1,0 +1,13 @@
+# Archivos de compilación y de Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.cache
+*.log
+
+# Sistema
+Thumbs.db
+desktop.ini
+~$*

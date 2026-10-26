@@ -1,0 +1,11 @@
+﻿BLOCKFORGE - PROYECTO INTEGRADOR VISUAL II
+
+01_Documento               Documentación completa (APA 7). Pendiente: enlace de Figma (6.6), revisar responsables del Gantt y la fecha de la portada.
+                           Ojo: el documento, los diagramas y los prototipos describen la versión 1 (2D); el juego ya es 3D (ver LEEME.md del proyecto).
+02_Proyecto_VisualStudio   Solución de Visual Studio. Abrir BlockForge\BlockForge.sln y presionar F5 (ver LEEME.md dentro).
+03_Diagramas               ER, clases, casos de uso, 4 diagramas de actividad, mapa de navegación y Gantt.
+04_Pantallas_Prototipo     Diseño de las 8 pantallas (base para recrearlas o importarlas en Figma).
+05_Base_de_datos           Script SQL de BlockForgeDB (la aplicación también lo ejecuta sola la primera vez).
+TRASPASO_CLAUDE_CODE.md    Contexto técnico para continuar en una sesión de Claude Code.
+
+Cuentas de prueba: admin / Admin2026 (Administrador)  -  jugador1 / Jugador2026 (Jugador)
