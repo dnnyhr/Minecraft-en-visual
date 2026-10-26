@@ -51,7 +51,24 @@ namespace BlockForge.Services
             new Receta("Lana negra", 1, "Lana blanca", 1, "Carbón", 1),
             new Receta("Chuleta cocida", 1, "Chuleta cruda", 1, "Carbón", 1),
             new Receta("Filete cocido", 1, "Filete crudo", 1, "Carbón", 1),
-            new Receta("Pollo cocido", 1, "Pollo crudo", 1, "Carbón", 1)
+            new Receta("Pollo cocido", 1, "Pollo crudo", 1, "Carbón", 1),
+            // Versión 5: metales, espadas y más bloques.
+            new Receta("Lingote de hierro", 1, "Mineral de hierro", 1, "Carbón", 1),
+            new Receta("Espada de madera", 1, "Madera", 2),
+            new Receta("Espada de piedra", 1, "Roca", 2, "Madera", 1),
+            new Receta("Espada de hierro", 1, "Lingote de hierro", 2, "Madera", 1),
+            new Receta("Espada de diamante", 1, "Diamante", 2, "Madera", 1),
+            new Receta("Bloque de hierro", 1, "Lingote de hierro", 9),
+            new Receta("Bloque de diamante", 1, "Diamante", 9),
+            new Receta("Roca", 1, "Piedra", 1),
+            new Receta("Piedra musgosa", 1, "Roca", 1, "Hojas", 1),
+            new Receta("Obsidiana", 1, "Piedra", 1, "Carbón", 2),
+            new Receta("Lana naranja", 2, "Lana roja", 1, "Lana amarilla", 1),
+            new Receta("Lana verde", 1, "Lana blanca", 1, "Hojas", 1),
+            new Receta("Lana celeste", 2, "Lana azul", 1, "Lana blanca", 1),
+            new Receta("Lana morada", 2, "Lana roja", 1, "Lana azul", 1),
+            new Receta("Lana rosa", 2, "Lana roja", 1, "Lana blanca", 1),
+            new Receta("Lana gris", 2, "Lana negra", 1, "Lana blanca", 1)
         };
 
         private static TipoBloque Tipo(string nombre)
@@ -63,6 +80,15 @@ namespace BlockForge.Services
         public static IEnumerable<Receta> Disponibles()
         {
             return Todas.Where(r => Tipo(r.Resultado) != null && r.Ingredientes.All(i => Tipo(i.Key) != null));
+        }
+
+        /// <summary>Recetas ordenadas para mostrar: primero las que se pueden fabricar, luego aquellas de las que se tiene algo.</summary>
+        public static List<Receta> Ordenadas(Inventario inventario)
+        {
+            return Disponibles()
+                .OrderByDescending(r => SePuede(r, inventario))
+                .ThenByDescending(r => r.Ingredientes.Count(i => Tipo(i.Key) != null && inventario.ObtenerCantidad(Tipo(i.Key).IdTipoBloque) > 0))
+                .ToList();
         }
 
         public static bool SePuede(Receta r, Inventario inventario)

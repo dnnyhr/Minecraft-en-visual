@@ -275,21 +275,47 @@ namespace BlockForge.Controls
         }
 
         // ------------------------------------------------------------------ combate
-        /// <summary>Golpea al mob apuntado si está más cerca que el bloque. Devuelve true si golpeó.</summary>
+        /// <summary>Animación del brazo, también en los demás equipos.</summary>
+        private void Balancear()
+        {
+            balanceo = 1f;
+            if (red != null) red.EnviarGolpe();
+        }
+
+        /// <summary>
+        /// Golpea al mob o al jugador apuntado (PvP) si está más cerca que el bloque. Devuelve true si golpeó.
+        /// El daño depende de la espada que se lleve en la mano.
+        /// </summary>
         private bool GolpearMob()
         {
             float distancia;
             Mob m = mobs.Apuntado(jugador.Ojo, jugador.Direccion, AlcanceGolpe, out distancia);
-            if (m == null) return false;
+            JugadorRemoto rival = null;
+            if (red != null)
+            {
+                foreach (JugadorRemoto j in red.Jugadores)
+                {
+                    if (j.Posicion.Y < -500) continue;
+                    float t = Fisica.RayoCaja(jugador.Ojo, jugador.Direccion, j.Posicion.X - 0.35f, j.Posicion.Y, j.Posicion.Z - 0.35f,
+                                              j.Posicion.X + 0.35f, j.Posicion.Y + 1.8f, j.Posicion.Z + 0.35f);
+                    if (t >= 0 && t <= AlcanceGolpe && t < distancia) { distancia = t; rival = j; m = null; }
+                }
+            }
+            if (m == null && rival == null) return false;
             if (objetivo.Hay)
             {
                 Vec3 centro = new Vec3(objetivo.X + 0.5f, objetivo.Y + 0.5f, objetivo.Z + 0.5f);
                 if ((centro - jugador.Ojo).Longitud < distancia - 0.5f) return false;
             }
-            balanceo = 1f;
+            Balancear();
             vida.Agotamiento += 0.1f;
-            float dano = 4f;
-            if (Simulo) mobs.Danar(m, dano, jugador.Posicion, IdLocal);
+            float dano = TipoActivo != null && juego.Inventario.ObtenerCantidad(TipoActivo.IdTipoBloque) > 0 ? TipoActivo.Dano : 2f;
+            if (rival != null)
+            {
+                red.AtacarJugador(rival.Id, dano, jugador.Posicion);
+                rival.DesdeDano = 0f;
+            }
+            else if (Simulo) mobs.Danar(m, dano, jugador.Posicion, IdLocal);
             else red.AtacarMob(m.Id, dano);
             return true;
         }
@@ -310,10 +336,10 @@ namespace BlockForge.Controls
             else if (red != null) red.EnviarDano(id, dano, desde);
         }
 
-        /// <summary>Daño al jugador local con retroceso.</summary>
-        private void RecibirDano(float dano, Vec3 desde, string causa)
+        /// <summary>Daño al jugador local con retroceso. Volando no se recibe daño de los mobs, pero sí de otros jugadores.</summary>
+        private void RecibirDano(float dano, Vec3 desde, string causa, bool deJugador = false)
         {
-            if (vida.Muerto || jugador.Volando) return;
+            if (vida.Muerto || (jugador.Volando && !deJugador)) return;
             float antes = vida.Vida;
             vida.Danar(dano, causa);
             if (vida.Vida < antes)
@@ -378,7 +404,7 @@ namespace BlockForge.Controls
                     foreach (JugadorRemoto j in red.Jugadores)
                     {
                         float d = (j.Posicion + new Vec3(0, 0.9f, 0) - centro).Longitud;
-                        if (d < alcance) red.EnviarDano(j.Id, (float)Math.Round((1 - d / alcance) * 18f), centro);
+                        if (d < alcance) red.EnviarDano(j.Id, (float)Math.Round((1 - d / alcance) * 18f), centro, "por la explosión de un creeper");
                     }
                     red.EnviarExplosion(centro, radio);
                 }

@@ -37,7 +37,11 @@ namespace BlockForge.Red
         /// <summary>Anfitrión → clientes: explotó un creeper (centro, radio), solo para efectos.</summary>
         Explosion = 12,
         /// <summary>Anfitrión → cliente: objetos que soltó un mob que mató el jugador.</summary>
-        Recompensa = 13
+        Recompensa = 13,
+        /// <summary>Ambos: un jugador dio un golpe (para animar su brazo en los demás equipos).</summary>
+        Golpe = 14,
+        /// <summary>Cliente → anfitrión: el jugador golpeó a otro jugador (PvP): id del objetivo y daño.</summary>
+        AtacarJugador = 15
     }
 
     internal class Mensaje
@@ -54,7 +58,7 @@ namespace BlockForge.Red
 
     internal static class Protocolo
     {
-        public const int Version = 3;
+        public const int Version = 4;
         public const int PuertoPredeterminado = 25570;
         public const int PuertoDescubrimiento = 25571;
         public const int TamanoMaximo = 64 * 1024 * 1024;

@@ -118,7 +118,7 @@ namespace BlockForge.Forms
             return servidor.Length > 0;
         }
 
-        private void btnUnirse_Click(object sender, EventArgs e)
+        private async void btnUnirse_Click(object sender, EventArgs e)
         {
             lblError.Text = string.Empty;
             string servidor;
@@ -134,11 +134,24 @@ namespace BlockForge.Forms
             {
                 Cursor = Cursors.WaitCursor;
                 btnUnirse.Enabled = false;
-                lblError.Text = "Conectando con " + (puerto > 0 ? servidor + ":" + puerto : servidor) + "...";
-                lblError.Refresh();
-                Mundo mundo;
+                lblError.Text = "Conectando con " + (puerto > 0 ? servidor + ":" + puerto : servidor) + "..." +
+                                (puerto == 0 ? " Si el anfitrión acaba de abrir el túnel, puede tardar hasta un minuto." : "");
                 Skin skin = Sesion.UsuarioActual != null ? Sesion.UsuarioActual.Skin : null;
-                Partida = PartidaRed.Unirse(servidor, puerto, NombreJugador, txtClave.Text, skin, 15000, out mundo);
+                string clave = txtClave.Text;
+                Mundo mundo = null;
+                PartidaRed partida = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    Mundo m;
+                    PartidaRed p = PartidaRed.Unirse(servidor, puerto, NombreJugador, clave, skin, 15000, out m);
+                    mundo = m;
+                    return p;
+                });
+                if (IsDisposed || DialogResult == DialogResult.Cancel)
+                {
+                    partida.Dispose(); // se canceló mientras se conectaba
+                    return;
+                }
+                Partida = partida;
                 MundoRecibido = mundo;
                 DialogResult = DialogResult.OK;
                 Close();

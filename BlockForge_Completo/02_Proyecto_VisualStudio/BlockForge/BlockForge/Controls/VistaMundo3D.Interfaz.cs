@@ -49,6 +49,13 @@ namespace BlockForge.Controls
         private float tiempoPosicion, tiempoMobs;
         private Vec3 ultimaPosicionEnviada = new Vec3(float.NaN, 0, 0);
         private float ultimoGiroEnviado, ultimaInclinacionEnviada;
+        private int ultimoObjetoEnviado;
+
+        /// <summary>Lo que se ve en la mano del jugador local (el espacio activo de la barra, si tiene unidades).</summary>
+        private int ObjetoEnMano
+        {
+            get { return TipoActivo != null && juego.Inventario.ObtenerCantidad(TipoActivo.IdTipoBloque) > 0 ? TipoActivo.IdTipoBloque : 0; }
+        }
         private bool chatAbierto, inventarioAbierto;
         private readonly StringBuilder entradaChat = new StringBuilder();
         private readonly List<LineaChat> lineasChat = new List<LineaChat>();
@@ -152,9 +159,10 @@ namespace BlockForge.Controls
             if (m != null && (m.Posicion - desde).Longitud < 6f) mobs.Danar(m, dano, desde, jugadorId);
         }
 
-        private void AlRecibirDano(float dano, Vec3 desde)
+        private void AlRecibirDano(float dano, Vec3 desde, string causa, bool deJugador)
         {
-            RecibirDano(dano, desde, "por un mob");
+            if (deJugador && (jugador.Posicion - desde).Longitud > 6f) return; // ataque desde demasiado lejos
+            RecibirDano(dano, desde, string.IsNullOrEmpty(causa) ? "por un mob" : causa, deJugador);
         }
 
         private void AlRecibirExplosion(Vec3 centro, float radio)
@@ -239,13 +247,15 @@ namespace BlockForge.Controls
             tiempoPosicion -= dt;
             Vec3 p = jugador.Posicion;
             bool cambio = float.IsNaN(ultimaPosicionEnviada.X) || (p - ultimaPosicionEnviada).Longitud > 0.01f ||
-                          Math.Abs(jugador.Giro - ultimoGiroEnviado) > 0.01f || Math.Abs(jugador.Inclinacion - ultimaInclinacionEnviada) > 0.01f;
+                          Math.Abs(jugador.Giro - ultimoGiroEnviado) > 0.01f || Math.Abs(jugador.Inclinacion - ultimaInclinacionEnviada) > 0.01f ||
+                          ObjetoEnMano != ultimoObjetoEnviado;
             if (tiempoPosicion <= 0 && (cambio || tiempoPosicion < -1f))
             {
-                red.EnviarPosicion(p.X, p.Y, p.Z, jugador.Giro, jugador.Inclinacion);
+                red.EnviarPosicion(p.X, p.Y, p.Z, jugador.Giro, jugador.Inclinacion, ObjetoEnMano);
                 ultimaPosicionEnviada = p;
                 ultimoGiroEnviado = jugador.Giro;
                 ultimaInclinacionEnviada = jugador.Inclinacion;
+                ultimoObjetoEnviado = ObjetoEnMano;
                 tiempoPosicion = 0.05f;
             }
         }
@@ -441,7 +451,8 @@ namespace BlockForge.Controls
                 float velocidad = (float)Math.Sqrt(v.X * v.X + v.Z * v.Z);
                 string nombre = Sesion.UsuarioActual != null ? Sesion.UsuarioActual.NombreUsuario : "";
                 ModeloJugador.Dibujar(jugador.Posicion, jugador.Giro, jugador.Inclinacion, caminataLocal, velocidad,
-                                      JugadorRemoto.ColorPara(nombre), LuzEn(jugador.Posicion), skinPropia);
+                                      JugadorRemoto.ColorPara(nombre), LuzEn(jugador.Posicion), skinPropia,
+                                      balanceo > 0 ? 1f - balanceo : 0f, ObjetoEnMano);
             }
             if (red == null) return;
 
@@ -450,7 +461,11 @@ namespace BlockForge.Controls
             {
                 presentes.Add(j.Id);
                 if (j.Posicion.Y < -500) continue;
-                ModeloJugador.Dibujar(j.Posicion, j.Giro, j.Inclinacion, j.Caminata, j.Velocidad, j.Camiseta, LuzEn(j.Posicion), SkinDe(j));
+                // Rojo un momento al recibir un golpe (PvP).
+                if (j.DesdeDano < 0.35f) { ModeloJugador.TinteG = 0.45f; ModeloJugador.TinteB = 0.45f; }
+                ModeloJugador.Dibujar(j.Posicion, j.Giro, j.Inclinacion, j.Caminata, j.Velocidad, j.Camiseta, LuzEn(j.Posicion), SkinDe(j),
+                                      j.DesdeGolpe / 0.3f, j.Objeto);
+                ModeloJugador.TinteG = ModeloJugador.TinteB = 1f;
             }
             // Texturas de jugadores que ya salieron.
             foreach (int id in new List<int>(skinsRemotas.Keys))
@@ -628,14 +643,17 @@ namespace BlockForge.Controls
             {
                 if (tb.Categoria != TipoBloque.Liquido) tipos.Add(tb);
             }
-            List<Receta> recetas = new List<Receta>(Recetas.Disponibles());
+            List<Receta> recetas = Recetas.Ordenadas(juego.Inventario);
 
             float t = 14 * escala;
-            const int columnas = 9;
-            float lado = 54 * escala, sep = 6 * escala, margen = 20 * escala;
+            const int columnas = 10;
+            float lado = 50 * escala, sep = 5 * escala, margen = 20 * escala;
             int filas = (tipos.Count + columnas - 1) / columnas;
             float anchoCuadricula = columnas * lado + (columnas - 1) * sep;
-            float anchoRecetas = 330 * escala, filaReceta = 40 * escala;
+            float anchoRecetas = 340 * escala, filaReceta = 38 * escala;
+            // Se muestran las recetas que caben junto a la cuadrícula (las fabricables van primero).
+            int maximoRecetas = Math.Max(10, (int)(filas * (lado + sep) / filaReceta));
+            if (recetas.Count > maximoRecetas) recetas = recetas.GetRange(0, maximoRecetas);
             float pw = margen * 3 + anchoCuadricula + anchoRecetas;
             float ph = Math.Max(filas * (lado + sep), recetas.Count * filaReceta) + 150 * escala;
             // Si no cabe en la ventana se achica todo.
@@ -680,6 +698,7 @@ namespace BlockForge.Controls
                 {
                     descripcion = tipo.Nombre + (tipo.EsComida ? "  ·  comida (+" + tipo.Alimento / 2f + " muslos), mantén clic derecho para comer" :
                                                  tipo.Categoria == TipoBloque.Material ? "  ·  material para fabricar" :
+                                                 tipo.Categoria == TipoBloque.Herramienta ? "  ·  arma: " + tipo.Dano / 2f + " corazones por golpe (la mano hace 1)" :
                                                  !tipo.EsRecolectable ? "  ·  no se puede recolectar" : "  ·  tienes " + cantidad);
                 }
             }

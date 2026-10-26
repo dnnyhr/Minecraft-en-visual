@@ -28,10 +28,18 @@ namespace BlockForge.Red
         /// <summary>Skin del jugador (PNG con el formato de Minecraft) o null.</summary>
         public byte[] Skin;
         public bool SkinDelgada;
+        /// <summary>Id del bloque u objeto que lleva en la mano (0 = nada).</summary>
+        public int Objeto;
+        /// <summary>Segundos desde su último golpe (para animar el brazo).</summary>
+        public float DesdeGolpe = 99f;
+        /// <summary>Segundos desde que recibió daño (para teñirlo de rojo).</summary>
+        public float DesdeDano = 99f;
 
         /// <summary>Suaviza el movimiento entre las actualizaciones de red (llegan 20 veces por segundo).</summary>
         public void Interpolar(float dt)
         {
+            DesdeGolpe += dt;
+            DesdeDano += dt;
             float k = Math.Min(1f, dt * 14f);
             Vec3 antes = Posicion;
             Posicion = Posicion + (Destino - Posicion) * k;
@@ -70,12 +78,15 @@ namespace BlockForge.Red
         public bool Internet { get; set; }
         /// <summary>Abrir un túnel rápido de Cloudflare (dirección https sin tocar el router).</summary>
         public bool Tunel { get; set; }
+        /// <summary>Los jugadores pueden hacerse daño entre sí.</summary>
+        public bool Pvp { get; set; }
 
         public OpcionesPartida()
         {
             Puerto = Protocolo.PuertoPredeterminado;
             Contrasena = string.Empty;
             MaximoJugadores = 8;
+            Pvp = true;
         }
     }
 
@@ -105,6 +116,8 @@ namespace BlockForge.Red
         private volatile bool cerrando;
 
         public bool EsAnfitrion { get; private set; }
+        /// <summary>Solo anfitrión: los jugadores pueden atacarse (se cambia con /pvp).</summary>
+        public bool Pvp { get; set; }
         public int Puerto { get; private set; }
         public string NombreLocal { get; private set; }
         public int IdLocal { get; private set; }
@@ -128,8 +141,8 @@ namespace BlockForge.Red
         internal event Action<byte[]> MobsRecibidos;
         /// <summary>Solo anfitrión: un invitado golpeó un mob (id del jugador, posición del jugador, id del mob, daño).</summary>
         internal event Action<int, Vec3, int, float> MobAtacado;
-        /// <summary>Solo invitado: el jugador local recibe daño (cantidad, origen).</summary>
-        internal event Action<float, Vec3> DanoRecibido;
+        /// <summary>El jugador local recibe daño (cantidad, origen, causa como "por Ana", si lo hizo otro jugador).</summary>
+        internal event Action<float, Vec3, string, bool> DanoRecibido;
         /// <summary>Solo invitado: explotó un creeper (centro, radio).</summary>
         internal event Action<Vec3, float> ExplosionRecibida;
         /// <summary>Solo invitado: objetos ganados (nombre del tipo, cantidad).</summary>
@@ -181,6 +194,7 @@ namespace BlockForge.Red
                 NombreMundo = mundo.Nombre,
                 NombreAnfitrion = nombreJugador,
                 contrasena = opciones.Contrasena ?? string.Empty,
+                Pvp = opciones.Pvp,
                 maximoJugadores = Math.Max(2, opciones.MaximoJugadores),
                 skinLocal = SkinSegura(skin),
                 skinLocalDelgada = skin != null && skin.Delgada
@@ -376,28 +390,31 @@ namespace BlockForge.Red
             Uri uri;
             if (!Uri.TryCreate(direccion, UriKind.Absolute, out uri)) throw new IOException("La dirección «" + url + "» no es válida.");
 
-            System.Net.WebSockets.ClientWebSocket ws = new System.Net.WebSockets.ClientWebSocket();
-            ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
-            ws.Options.SetRequestHeader("ngrok-skip-browser-warning", "1");
-            try
+            // Una dirección de túnel recién creada tarda hasta un minuto en funcionar: se reintenta mientras tanto.
+            DateTime limite = DateTime.UtcNow.AddMilliseconds(Math.Max(espera, 90000));
+            Exception ultimo = null;
+            while (DateTime.UtcNow < limite)
             {
-                using (CancellationTokenSource cts = new CancellationTokenSource(espera))
+                System.Net.WebSockets.ClientWebSocket ws = new System.Net.WebSockets.ClientWebSocket();
+                ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+                ws.Options.SetRequestHeader("ngrok-skip-browser-warning", "1");
+                try
                 {
-                    ws.ConnectAsync(uri, cts.Token).GetAwaiter().GetResult();
+                    using (CancellationTokenSource cts = new CancellationTokenSource(15000))
+                    {
+                        ws.ConnectAsync(uri, cts.Token).GetAwaiter().GetResult();
+                    }
+                    return new Conexion(new FlujoWebSocket(ws), () => { }, uri.Host);
+                }
+                catch (Exception ex)
+                {
+                    ws.Dispose();
+                    ultimo = ex;
+                    Thread.Sleep(3000);
                 }
             }
-            catch (OperationCanceledException)
-            {
-                ws.Dispose();
-                throw new IOException("El túnel " + uri.Host + " no respondió. Verifique que el anfitrión siga con la partida abierta.");
-            }
-            catch (Exception ex)
-            {
-                ws.Dispose();
-                throw new IOException("No fue posible conectarse a " + uri.Host + ". " +
-                                      "Puede que el anfitrión haya cerrado la partida (cada vez que la abre, la dirección del túnel cambia). " + ex.Message);
-            }
-            return new Conexion(new FlujoWebSocket(ws), () => { }, uri.Host);
+            throw new IOException("No fue posible conectarse a " + uri.Host + ". Puede que el anfitrión haya cerrado la partida " +
+                                  "(cada vez que la abre, la dirección del túnel cambia). " + (ultimo != null ? ultimo.Message : ""));
         }
 
         // ------------------------------------------------------------------ procesamiento (hilo del juego)
@@ -471,10 +488,26 @@ namespace BlockForge.Red
                         {
                             r.ReadInt32();
                             float x = r.ReadSingle(), y = r.ReadSingle(), z = r.ReadSingle(), g = r.ReadSingle(), i = r.ReadSingle();
+                            int objeto = r.ReadByte();
                             if (float.IsNaN(x + y + z + g + i) || float.IsInfinity(x + y + z + g + i)) return;
                             JugadorRemoto j;
-                            if (jugadores.TryGetValue(c.Id, out j)) Mover(j, x, y, z, g, i);
-                            Difundir(TipoMensaje.Posicion, DatosPosicion(c.Id, x, y, z, g, i), c);
+                            if (jugadores.TryGetValue(c.Id, out j)) { Mover(j, x, y, z, g, i); j.Objeto = objeto; }
+                            Difundir(TipoMensaje.Posicion, DatosPosicion(c.Id, x, y, z, g, i, objeto), c);
+                            break;
+                        }
+                    case TipoMensaje.Golpe:
+                        {
+                            JugadorRemoto j;
+                            if (jugadores.TryGetValue(c.Id, out j)) j.DesdeGolpe = 0f;
+                            Difundir(TipoMensaje.Golpe, Protocolo.Armar(w => w.Write(c.Id)), c);
+                            break;
+                        }
+                    case TipoMensaje.AtacarJugador:
+                        {
+                            int objetivo = r.ReadInt32();
+                            float dano = Math.Max(0f, Math.Min(8f, r.ReadSingle()));
+                            JugadorRemoto atacante;
+                            if (jugadores.TryGetValue(c.Id, out atacante)) Atacar(c.Id, c.Nombre, atacante.Destino, objetivo, dano);
                             break;
                         }
                     case TipoMensaje.Chat:
@@ -572,7 +605,7 @@ namespace BlockForge.Red
             foreach (JugadorRemoto j in jugadores.Values)
             {
                 c.Enviar(TipoMensaje.Entra, DatosEntra(j.Id, j.Nombre, false, j.Skin, j.SkinDelgada));
-                c.Enviar(TipoMensaje.Posicion, DatosPosicion(j.Id, j.Destino.X, j.Destino.Y, j.Destino.Z, j.GiroDestino, j.InclinacionDestino));
+                c.Enviar(TipoMensaje.Posicion, DatosPosicion(j.Id, j.Destino.X, j.Destino.Y, j.Destino.Z, j.GiroDestino, j.InclinacionDestino, j.Objeto));
             }
             Difundir(TipoMensaje.Entra, DatosEntra(c.Id, nombre, false, skin, delgada), c);
 
@@ -606,8 +639,15 @@ namespace BlockForge.Red
                         {
                             int id = r.ReadInt32();
                             float x = r.ReadSingle(), y = r.ReadSingle(), z = r.ReadSingle(), g = r.ReadSingle(), i = r.ReadSingle();
+                            int objeto = r.ReadByte();
                             JugadorRemoto j;
-                            if (id != IdLocal && jugadores.TryGetValue(id, out j)) Mover(j, x, y, z, g, i);
+                            if (id != IdLocal && jugadores.TryGetValue(id, out j)) { Mover(j, x, y, z, g, i); j.Objeto = objeto; }
+                            break;
+                        }
+                    case TipoMensaje.Golpe:
+                        {
+                            JugadorRemoto j;
+                            if (jugadores.TryGetValue(r.ReadInt32(), out j)) j.DesdeGolpe = 0f;
                             break;
                         }
                     case TipoMensaje.Entra:
@@ -646,7 +686,9 @@ namespace BlockForge.Red
                         {
                             float dano = r.ReadSingle();
                             Vec3 desde = new Vec3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-                            if (DanoRecibido != null) DanoRecibido(dano, desde);
+                            string causa = r.ReadString();
+                            bool deJugador = r.ReadBoolean();
+                            if (DanoRecibido != null) DanoRecibido(dano, desde, causa, deJugador);
                             break;
                         }
                     case TipoMensaje.Explosion:
@@ -689,9 +731,9 @@ namespace BlockForge.Red
             else if (anfitrion != null) anfitrion.Enviar(TipoMensaje.Bloque, datos);
         }
 
-        public void EnviarPosicion(float x, float y, float z, float giro, float inclinacion)
+        public void EnviarPosicion(float x, float y, float z, float giro, float inclinacion, int objeto)
         {
-            byte[] datos = DatosPosicion(IdLocal, x, y, z, giro, inclinacion);
+            byte[] datos = DatosPosicion(IdLocal, x, y, z, giro, inclinacion, objeto);
             if (EsAnfitrion) Difundir(TipoMensaje.Posicion, datos, null);
             else if (anfitrion != null) anfitrion.Enviar(TipoMensaje.Posicion, datos);
         }
@@ -709,11 +751,49 @@ namespace BlockForge.Red
         }
 
         /// <summary>Anfitrión: un invitado recibe daño.</summary>
-        internal void EnviarDano(int jugador, float dano, Vec3 desde)
+        internal void EnviarDano(int jugador, float dano, Vec3 desde, string causa = "por un mob", bool deJugador = false)
         {
             if (!EsAnfitrion) return;
             Conexion c = clientes.FirstOrDefault(x => x.Aceptada && x.Id == jugador);
-            if (c != null) c.Enviar(TipoMensaje.Dano, Protocolo.Armar(w => { w.Write(dano); w.Write(desde.X); w.Write(desde.Y); w.Write(desde.Z); }));
+            if (c != null)
+            {
+                c.Enviar(TipoMensaje.Dano, Protocolo.Armar(w =>
+                {
+                    w.Write(dano); w.Write(desde.X); w.Write(desde.Y); w.Write(desde.Z); w.Write(causa ?? ""); w.Write(deJugador);
+                }));
+            }
+        }
+
+        /// <summary>El jugador local dio un golpe: los demás ven moverse su brazo.</summary>
+        public void EnviarGolpe()
+        {
+            byte[] datos = Protocolo.Armar(w => w.Write(IdLocal));
+            if (EsAnfitrion) Difundir(TipoMensaje.Golpe, datos, null);
+            else if (anfitrion != null) anfitrion.Enviar(TipoMensaje.Golpe, datos);
+        }
+
+        /// <summary>El jugador local golpeó a otro jugador (PvP). Lo decide el anfitrión.</summary>
+        internal void AtacarJugador(int objetivo, float dano, Vec3 desde)
+        {
+            if (EsAnfitrion) Atacar(IdLocal, NombreLocal, desde, objetivo, dano);
+            else if (anfitrion != null) anfitrion.Enviar(TipoMensaje.AtacarJugador, Protocolo.Armar(w => { w.Write(objetivo); w.Write(dano); }));
+        }
+
+        /// <summary>Anfitrión: aplica un ataque entre jugadores si el PvP está activo y están cerca.</summary>
+        private void Atacar(int atacante, string nombreAtacante, Vec3 desde, int objetivo, float dano)
+        {
+            if (!Pvp || atacante == objetivo) return;
+            string causa = "por " + nombreAtacante;
+            if (objetivo == IdAnfitrion)
+            {
+                // La distancia al anfitrión la comprueba el juego, que conoce su posición.
+                if (DanoRecibido != null) DanoRecibido(dano, desde, causa, true);
+                return;
+            }
+            JugadorRemoto j;
+            if (!jugadores.TryGetValue(objetivo, out j) || (j.Destino - desde).Longitud > 6f) return;
+            j.DesdeDano = 0f;
+            EnviarDano(objetivo, dano, desde, causa, true);
         }
 
         /// <summary>Anfitrión: efectos de una explosión (los bloques llegan como cambios normales).</summary>
@@ -771,9 +851,14 @@ namespace BlockForge.Red
             {
                 Local("Jugadores: " + string.Join(", ", NombresJugadores()));
             }
+            else if (orden == "/pvp")
+            {
+                Pvp = !Pvp;
+                Sistema(Pvp ? "PvP activado: los jugadores pueden atacarse." : "PvP desactivado: los jugadores ya no se hacen daño.");
+            }
             else
             {
-                Local("Comandos del anfitrión: /expulsar <nombre>, /jugadores");
+                Local("Comandos del anfitrión: /expulsar <nombre>, /jugadores, /pvp, /dia, /noche, /pacifico");
             }
         }
 
@@ -796,9 +881,9 @@ namespace BlockForge.Red
             }
         }
 
-        private static byte[] DatosPosicion(int id, float x, float y, float z, float g, float i)
+        private static byte[] DatosPosicion(int id, float x, float y, float z, float g, float i, int objeto)
         {
-            return Protocolo.Armar(w => { w.Write(id); w.Write(x); w.Write(y); w.Write(z); w.Write(g); w.Write(i); });
+            return Protocolo.Armar(w => { w.Write(id); w.Write(x); w.Write(y); w.Write(z); w.Write(g); w.Write(i); w.Write((byte)Math.Max(0, Math.Min(255, objeto))); });
         }
 
         private static byte[] DatosEntra(int id, string nombre, bool esAnfitrion, byte[] skin, bool delgada)

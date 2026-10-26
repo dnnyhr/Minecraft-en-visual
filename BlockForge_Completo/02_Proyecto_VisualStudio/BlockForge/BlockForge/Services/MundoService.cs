@@ -79,6 +79,8 @@ namespace BlockForge.Services
                 GeneradorTerreno.Generar(mundo);
                 mundo.JugadorX = mundo.JugadorY = mundo.JugadorZ = null;
             }
+            // Mundos de versiones anteriores: se les agrega hierro y diamante bajo tierra (siempre igual, según la semilla).
+            else if (!GeneradorTerreno.TieneMinerales(mundo)) GeneradorTerreno.AgregarMinerales(mundo);
             inventario = inventarios.Obtener(idMundo);
             return mundo;
         }

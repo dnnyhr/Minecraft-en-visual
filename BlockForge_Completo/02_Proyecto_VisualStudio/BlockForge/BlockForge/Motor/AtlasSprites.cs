@@ -137,6 +137,59 @@ namespace BlockForge.Motor
                 "........"
             }, new Dictionary<char, Color> { { 'k', Color.FromArgb(30, 60, 140) }, { 'b', Color.FromArgb(110, 170, 250) }, { 'w', Color.White } });
 
+            // Versión 5: piedras, hierro, diamante, lanas y espadas.
+            DibujarRoca(Roca, false);
+            DibujarRoca(PiedraMusgosa, true);
+            DibujarRuido(Obsidiana, Color.FromArgb(26, 18, 40), 10, 410);
+            DibujarMineral(MineralHierro, Color.FromArgb(216, 175, 147), 411);
+            DibujarMineral(MineralDiamante, Color.FromArgb(92, 226, 226), 412);
+            DibujarBloqueMetal(BloqueHierro, Color.FromArgb(222, 222, 222));
+            DibujarBloqueMetal(BloqueDiamante, Color.FromArgb(98, 232, 226));
+            DibujarLana(LanaNaranja, Color.FromArgb(224, 122, 42), 413);
+            DibujarLana(LanaVerde, Color.FromArgb(76, 154, 42), 414);
+            DibujarLana(LanaCeleste, Color.FromArgb(90, 180, 224), 415);
+            DibujarLana(LanaMorada, Color.FromArgb(122, 58, 180), 416);
+            DibujarLana(LanaRosa, Color.FromArgb(232, 138, 174), 417);
+            DibujarLana(LanaGris, Color.FromArgb(106, 106, 110), 418);
+            Plantilla(LingoteHierro, new[]
+            {
+                "........",
+                "........",
+                "..kkkkk.",
+                ".kwwbbbk",
+                "kbbbbbk.",
+                "kkkkkk..",
+                "........",
+                "........"
+            }, new Dictionary<char, Color> { { 'k', Color.FromArgb(70, 70, 74) }, { 'b', Color.FromArgb(200, 200, 204) }, { 'w', Color.White } });
+            Plantilla(Diamante, new[]
+            {
+                "........",
+                "..kkkk..",
+                ".kwccck.",
+                "kcwccdck",
+                ".kccdck.",
+                "..kcdk..",
+                "...kk...",
+                "........"
+            }, new Dictionary<char, Color> { { 'k', Color.FromArgb(16, 70, 74) }, { 'c', Color.FromArgb(92, 226, 226) }, { 'd', Color.FromArgb(40, 160, 168) }, { 'w', Color.White } });
+            string[] espada =
+            {
+                "......kk",
+                ".....kwk",
+                "....kbk.",
+                "kk.kbk..",
+                ".kkbk...",
+                "..hk....",
+                ".hkk....",
+                "hh......"
+            };
+            Color mango = Color.FromArgb(104, 74, 40);
+            Plantilla(EspadaMadera, espada, new Dictionary<char, Color> { { 'k', Color.FromArgb(60, 40, 20) }, { 'b', Color.FromArgb(168, 132, 78) }, { 'w', Color.FromArgb(200, 168, 110) }, { 'h', mango } });
+            Plantilla(EspadaPiedra, espada, new Dictionary<char, Color> { { 'k', Color.FromArgb(50, 50, 52) }, { 'b', Color.FromArgb(132, 132, 132) }, { 'w', Color.FromArgb(176, 176, 176) }, { 'h', mango } });
+            Plantilla(EspadaHierro, espada, new Dictionary<char, Color> { { 'k', Color.FromArgb(70, 70, 74) }, { 'b', Color.FromArgb(214, 214, 218) }, { 'w', Color.White }, { 'h', mango } });
+            Plantilla(EspadaDiamante, espada, new Dictionary<char, Color> { { 'k', Color.FromArgb(16, 70, 74) }, { 'b', Color.FromArgb(92, 226, 226) }, { 'w', Color.FromArgb(200, 255, 250) }, { 'h', mango } });
+
             DibujarAstro(Sol, Color.FromArgb(255, 236, 120), Color.FromArgb(255, 255, 210), 0);
             DibujarAstro(Luna, Color.FromArgb(200, 206, 220), Color.FromArgb(236, 240, 250), 1);
         }
@@ -175,6 +228,53 @@ namespace BlockForge.Motor
             for (int y = 0; y < Tile; y++)
             {
                 for (int x = 0; x < Tile; x++) PonerVariado(tile, x, y, c, variacion, azar);
+            }
+        }
+
+        /// <summary>Roca (piedras redondeadas con juntas oscuras); con musgo, manchas verdes encima.</summary>
+        private static void DibujarRoca(int tile, bool musgo)
+        {
+            Random azar = new Random(musgo ? 421 : 420);
+            int[] tonos = { 98, 112, 128, 140 };
+            for (int y = 0; y < Tile; y++)
+            {
+                for (int x = 0; x < Tile; x++) Poner(tile, x, y, 70, 70, 70);
+            }
+            for (int by = 0; by < Tile; by += 4)
+            {
+                int desplazamiento = (by / 4) % 2 == 0 ? 0 : 2;
+                for (int bx = -desplazamiento; bx < Tile; bx += 5)
+                {
+                    int t = tonos[azar.Next(tonos.Length)];
+                    for (int y = by; y < by + 3 && y < Tile; y++)
+                    {
+                        for (int x = Math.Max(0, bx); x < bx + 4 && x < Tile; x++)
+                        {
+                            int v = t + azar.Next(-8, 9) + (y == by ? 14 : 0);
+                            Poner(tile, x, y, v, v, v);
+                        }
+                    }
+                }
+            }
+            if (!musgo) return;
+            for (int i = 0; i < 40; i++)
+            {
+                int x = azar.Next(Tile), y = azar.Next(Tile);
+                Poner(tile, x, y, 70 + azar.Next(20), 120 + azar.Next(30), 60 + azar.Next(20));
+            }
+        }
+
+        private static void DibujarBloqueMetal(int tile, Color c)
+        {
+            Random azar = new Random(c.ToArgb());
+            for (int y = 0; y < Tile; y++)
+            {
+                for (int x = 0; x < Tile; x++)
+                {
+                    int d = azar.Next(-5, 6) + (x == 0 || y == 0 ? 24 : 0) - (x == Tile - 1 || y == Tile - 1 ? 40 : 0);
+                    if ((x + y) % 7 == 0) d += 14;
+                    Poner(tile, x, y, c.R + d, c.G + d, c.B + d);
+                }
             }
         }
 

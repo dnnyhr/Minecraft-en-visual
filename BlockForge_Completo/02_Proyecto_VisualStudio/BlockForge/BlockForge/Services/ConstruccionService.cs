@@ -78,13 +78,14 @@ namespace BlockForge.Services
         /// <summary>Lo último que se sumó al inventario al romper un bloque.</summary>
         public TipoBloque UltimoRecolectado { get; private set; }
 
-        /// <summary>Qué deja un bloque al romperse: el mineral de carbón da carbón; la hierba alta, nada.</summary>
+        /// <summary>Qué deja un bloque al romperse: el mineral de carbón da carbón, el de diamante un diamante; la hierba alta, nada.</summary>
         private static TipoBloque Suelta(TipoBloque tipo)
         {
             if (tipo == null || !tipo.EsRecolectable) return null;
             switch (tipo.Nombre)
             {
                 case "Mineral de carbón": return CatalogoBloques.Tipos.FirstOrDefault(t => t.Nombre == "Carbón") ?? tipo;
+                case "Mineral de diamante": return CatalogoBloques.Tipos.FirstOrDefault(t => t.Nombre == "Diamante") ?? tipo;
                 case "Hierba alta": return null;
                 default: return tipo;
             }

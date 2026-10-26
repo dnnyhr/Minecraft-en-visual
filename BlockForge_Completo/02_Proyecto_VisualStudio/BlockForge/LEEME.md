@@ -105,8 +105,38 @@ tanto con mouse como con trackpad; la sensibilidad se ajusta en **Configuración
 | 1 Lámpara | 1 Vidrio + 2 Antorcha |
 | Lana roja / amarilla / azul / negra | Lana blanca + Rosa / Diente de león / Aciano / Carbón |
 | Chuleta, filete o pollo cocido | La carne cruda + 1 Carbón |
+| 1 Lingote de hierro | 1 Mineral de hierro + 1 Carbón |
+| Espada de madera / piedra / hierro / diamante | 2 Madera / 2 Roca + 1 Madera / 2 Lingotes + 1 Madera / 2 Diamantes + 1 Madera |
+| 1 Bloque de hierro / de diamante | 9 Lingotes / 9 Diamantes |
+| 1 Roca · 1 Piedra musgosa · 1 Obsidiana | 1 Piedra · 1 Roca + 1 Hojas · 1 Piedra + 2 Carbón |
+| Lanas naranja, verde, celeste, morada, rosa y gris | Mezclando lanas (y hojas para la verde) |
 
-El **carbón** sale del mineral de carbón (vetas oscuras en la piedra) y la **arcilla** del fondo de los lagos.
+El **carbón** sale del mineral de carbón (vetas oscuras en la piedra), la **arcilla** del fondo de los lagos,
+el **hierro** de las vetas beige bajo tierra y el **diamante** (celeste) solo en lo más profundo, cerca de la lava.
+Los mundos creados antes de esta versión reciben hierro y diamante bajo tierra al abrirlos.
+En el inventario aparecen primero las recetas que puedes fabricar.
+
+### Espadas y daño
+
+| En la mano | Daño por golpe |
+|---|---|
+| Nada, un bloque u otro objeto | 1 corazón |
+| Espada de madera | 2 corazones |
+| Espada de piedra | 2,5 corazones |
+| Espada de hierro | 3 corazones |
+| Espada de diamante | 3,5 corazones |
+
+## Texturas de Minecraft Classic
+
+En el juego, menú **Ver → Texturas**:
+
+- **Descargar las de Minecraft Classic (Mojang):** baja el cliente oficial de Minecraft Classic 0.30 desde
+  `launcher.mojang.com` (unos 290 KB), como hace ClassiCube, y guarda solo su `terrain.png` en `%LocalAppData%\BlockForge`.
+- **Elegir un terrain.png:** cualquier paquete de texturas con el formato de Classic (16×16 tiles; 256×256 o mayor).
+- **Minecraft Classic / BlockForge:** cambia entre esas texturas y el pixel art propio sin salir del mundo.
+
+Los bloques que Classic no tiene (diamante, comida, antorchas, espadas, etc.) usan siempre el pixel art de BlockForge.
+Las texturas de Classic son de Mojang: **no se incluyen en el proyecto ni en el repositorio**, cada equipo las descarga.
 
 ## Multijugador (red local e internet)
 
@@ -114,10 +144,15 @@ El **carbón** sale del mineral de carbón (vetas oscuras en la piedra) y la **a
   **Esc → Abrir a la red / internet** (también en el menú *Multijugador*). Se elige:
   - **Red local:** equipos del mismo Wi-Fi/router. La partida aparece sola en la lista de los demás.
   - **Internet fácil (túnel de Cloudflare) — recomendado:** no hay que tocar el router ni crear cuentas, y funciona
-    aunque el proveedor use CGNAT. La primera vez BlockForge pide permiso para descargar **cloudflared**, el programa
-    oficial y gratuito de Cloudflare (unos 60 MB, se guarda en `%LocalAppData%\BlockForge`). En unos segundos el chat
-    muestra una dirección como `https://palabras-al-azar.trycloudflare.com`: **Esc → Copiar invitación** y mándenla.
-    Los demás la pegan en **Unirse a partida**. La dirección cambia cada vez que se abre la partida.
+    aunque el proveedor use CGNAT. Solo el **anfitrión** necesita **cloudflared**, el programa oficial y gratuito de
+    Cloudflare; se instala una vez desde una terminal (PowerShell) con:
+    ```
+    winget install --id Cloudflare.cloudflared -e --source winget
+    ```
+    Al abrir la partida, Cloudflare crea una dirección como `https://palabras-al-azar.trycloudflare.com` y **tarda
+    hasta un minuto en publicarla**: el chat dice «Preparando...» y avisa cuando ya funciona. Entonces **Esc → Copiar
+    invitación** y mándenla. Los demás la pegan en **Unirse a partida** (si entran justo después, el juego reintenta
+    solo durante un minuto y medio). La dirección cambia cada vez que se abre la partida.
   - **Internet abriendo un puerto (avanzado):** BlockForge pide al router que abra el puerto (**UPnP**) y muestra tu
     **IP pública** (por ejemplo `181.45.3.2:25570`).
   - **Contraseña** (recomendada en internet), **puerto** y **máximo de jugadores**.
@@ -128,6 +163,10 @@ El **carbón** sale del mineral de carbón (vetas oscuras en la piedra) y la **a
   Los **invitados** empiezan con el inventario vacío y no guardan nada; si el anfitrión sale, la partida termina.
 - El anfitrión puede escribir en el chat **/expulsar nombre** o **/jugadores**.
 - Los mobs, la hora del día y las explosiones los controla el anfitrión; cada jugador tiene su propia vida y hambre.
+- Se ve lo que cada jugador lleva en la mano y su brazo al golpear, romper o construir.
+- **PvP:** con clic izquierdo se golpea a otros jugadores (se ponen rojos y retroceden); el daño depende de la espada.
+  Se activa o desactiva al abrir la partida o con **/pvp** en el chat del anfitrión. Volando no te atacan los mobs,
+  pero sí los jugadores. Al morir, el chat dice quién te mató.
 - Puertos: TCP 25570 (si está ocupado se usa el siguiente, hasta 25579) y UDP 25571 para anunciar en la red local.
   El mismo puerto TCP acepta también conexiones WebSocket, que es lo que llega por los túneles.
 
@@ -186,7 +225,8 @@ BlockForge/
     │   └── Internet.cs            UPnP (abrir el puerto del router) e IP pública
     ├── Motor/                     Motor 3D
     │   ├── GL.cs                  Enlace con OpenGL 1.1, WGL y Win32 (P/Invoke, Raw Input del mouse)
-    │   ├── Atlas.cs, AtlasSprites.cs  Texturas 16×16 generadas por código (bloques, plantas, comida, HUD)
+    │   ├── Atlas.cs, AtlasSprites.cs  Texturas 16×16 generadas por código (bloques, plantas, comida, espadas, HUD)
+    │   ├── TexturasClassic.cs     terrain.png de Minecraft Classic (descarga desde Mojang o archivo propio)
     │   ├── RenderMundo.cs         Chunks de 16³, luz del sol con tinte del día y luz de antorchas/lava
     │   ├── CicloDia.cs            Hora, color del cielo y de la niebla
     │   ├── Supervivencia.cs       Vida, hambre, saturación, aire y daño
@@ -206,8 +246,14 @@ BlockForge/
         ├── 01_CrearBaseDatos.sql  Esquema versión 2
         ├── 02_MigrarVersion2.sql  Migración desde la versión 1 (2D)
         ├── 03_MigrarVersion3.sql  Skins de los usuarios
-        └── 04_MigrarVersion4.sql  Bloques nuevos, comida, hora del día, vida y hambre
+        ├── 04_MigrarVersion4.sql  Bloques nuevos, comida, hora del día, vida y hambre
+        └── 05_MigrarVersion5.sql  Hierro, diamante, espadas y más bloques
 ```
+
+### Cambios en la base de datos (versión 5)
+
+- `TipoBloque.Categoria` pasa a `VARCHAR(12)` y admite `Herramienta`; se agregan 19 tipos (hierro, diamante, espadas,
+  roca, piedra musgosa, obsidiana y seis lanas). Script: `Database/05_MigrarVersion5.sql`.
 
 ### Cambios en la base de datos (versión 4)
 
@@ -234,6 +280,11 @@ BlockForge/
   4. Si sigue igual: **Herramientas → Opciones → Administrador de paquetes NuGet → Orígenes de paquetes**, y comprueben que **nuget.org** (`https://api.nuget.org/v3/index.json`) esté marcado.
 - **Error NETSDK1045 ("no admite .NET 10.0"):** su Visual Studio es anterior a 2026. Actualícenlo o, como alternativa, cambien `net10.0-windows` por `net8.0-windows` en `BlockForge.csproj`.
 - **"No fue posible preparar la base de datos":** LocalDB no está instalado o no ha arrancado. Abran una terminal y ejecuten `sqllocaldb info`. Si aparece `MSSQLLocalDB`, ejecuten `sqllocaldb start MSSQLLocalDB` y vuelvan a intentar. La primera conexión puede tardar unos segundos mientras LocalDB arranca.
+- **"Could not load file or assembly ... BlockForge.dll. Una directiva de Control de aplicaciones bloqueó este archivo (0x800711C7)":**
+  es **Smart App Control** de Windows 11, que juzga los programas sin firma digital (como cualquier proyecto recién
+  compilado). Suele bastar con **Compilar → Recompilar solución** y volver a ejecutar; el registro está en el Visor de
+  eventos → Registros de aplicaciones → Microsoft → Windows → CodeIntegrity → Operational. Desactivar Smart App Control
+  también lo evita, pero en Windows 11 no se puede volver a activar sin reinstalar, así que no lo recomendamos.
 - **"No fue posible iniciar la vista 3D (OpenGL)":** actualicen el controlador de la tarjeta de video. En máquinas virtuales o escritorio remoto sin aceleración, OpenGL puede no estar disponible.
 - **Volver a crear la base desde cero:** en Visual Studio, abran **Ver → Explorador de objetos de SQL Server**, conéctense a `(localdb)\MSSQLLocalDB`, eliminen `BlockForgeDB` y ejecuten la aplicación de nuevo.
 - **Usar otro servidor SQL:** cambien la constante `CadenaConexion` en `Data/Conexion.cs`.

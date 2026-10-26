@@ -18,6 +18,58 @@ namespace BlockForge.Services
             return t != null ? t.IdTipoBloque : 0;
         }
 
+        /// <summary>
+        /// Hierro y diamante en la piedra. Se usa al generar y también al abrir un mundo creado antes de que
+        /// existieran (solo reemplaza piedra bajo tierra, así no toca lo construido en la superficie).
+        /// </summary>
+        public static void AgregarMinerales(Mundo mundo, Random azar = null, int[,] superficies = null)
+        {
+            int piedra = Id("Piedra"), hierro = Id("Mineral de hierro"), diamante = Id("Mineral de diamante");
+            if (piedra == 0) return;
+            azar = azar ?? new Random(mundo.Semilla ^ 0x5A17);
+            if (superficies == null)
+            {
+                superficies = new int[mundo.Ancho, mundo.Largo];
+                for (int x = 0; x < mundo.Ancho; x++)
+                {
+                    for (int z = 0; z < mundo.Largo; z++) superficies[x, z] = mundo.NivelAgua - 4;
+                }
+            }
+            int volumen = mundo.Ancho * mundo.Largo * mundo.Alto;
+            if (hierro != 0) Vetas(mundo, azar, superficies, piedra, hierro, volumen / 5200, 3, 6, mundo.Alto * 2 / 5);
+            if (diamante != 0) Vetas(mundo, azar, superficies, piedra, diamante, volumen / 26000, 2, 5, Math.Max(6, mundo.Alto / 8));
+        }
+
+        /// <summary>¿El mundo ya tiene hierro? (los mundos de versiones anteriores no).</summary>
+        public static bool TieneMinerales(Mundo mundo)
+        {
+            int hierro = Id("Mineral de hierro");
+            if (hierro == 0) return true;
+            byte[] celdas = mundo.Celdas;
+            for (int i = 0; i < celdas.Length; i++)
+            {
+                if (celdas[i] == hierro) return true;
+            }
+            return false;
+        }
+
+        private static void Vetas(Mundo mundo, Random azar, int[,] superficies, int piedra, int mineral, int cantidad, int minimo, int maximo, int alturaMaxima)
+        {
+            for (int i = 0; i < cantidad; i++)
+            {
+                int x = azar.Next(mundo.Ancho), z = azar.Next(mundo.Largo);
+                int tope = Math.Min(alturaMaxima, superficies[x, z] - 4);
+                if (tope < 2) continue;
+                int y = 1 + azar.Next(tope);
+                int tamano = minimo + azar.Next(maximo - minimo + 1);
+                for (int k = 0; k < tamano; k++)
+                {
+                    if (mundo.EstaDentro(x, y, z) && mundo.ObtenerBloque(x, y, z) == piedra) mundo.EstablecerBloque(x, y, z, mineral);
+                    x += azar.Next(-1, 2); y += azar.Next(-1, 2); z += azar.Next(-1, 2);
+                }
+            }
+        }
+
         public static void Generar(Mundo mundo)
         {
             int pasto = CatalogoBloques.PorNombre("Pasto").IdTipoBloque;
@@ -78,21 +130,9 @@ namespace BlockForge.Services
                 }
             }
 
-            // Vetas de carbón dentro de la piedra.
-            if (carbon != 0)
-            {
-                int vetas = mundo.Ancho * mundo.Largo * mundo.Alto / 2600;
-                for (int i = 0; i < vetas; i++)
-                {
-                    int x = azar.Next(mundo.Ancho), z = azar.Next(mundo.Largo), y = 1 + azar.Next(Math.Max(1, superficies[x, z] - 4));
-                    int tamano = 3 + azar.Next(6);
-                    for (int k = 0; k < tamano; k++)
-                    {
-                        if (mundo.ObtenerBloque(x, y, z) == piedra) mundo.EstablecerBloque(x, y, z, carbon);
-                        x += azar.Next(-1, 2); y += azar.Next(-1, 2); z += azar.Next(-1, 2);
-                    }
-                }
-            }
+            // Vetas de carbón dentro de la piedra; hierro más abajo y diamante solo en lo más hondo.
+            if (carbon != 0) Vetas(mundo, azar, superficies, piedra, carbon, mundo.Ancho * mundo.Largo * mundo.Alto / 2600, 3, 8, mundo.Alto);
+            AgregarMinerales(mundo, azar, superficies);
 
             // Cuevas: túneles que serpentean bajo tierra; en lo más hondo se llenan de lava.
             int tuneles = Math.Max(3, mundo.Ancho * mundo.Largo / 1100);

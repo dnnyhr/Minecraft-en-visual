@@ -67,11 +67,21 @@ namespace BlockForge.Motor
         /// <summary>Color que multiplica a las cajas con textura (para teñir mobs de rojo, blanco o naranja).</summary>
         internal static float TinteR = 1f, TinteG = 1f, TinteB = 1f, TinteA = 1f;
 
-        /// <summary>Dibuja el modelo con los pies en "pos" mirando según giro e inclinación.</summary>
-        public static void Dibujar(Vec3 pos, float giro, float inclinacion, float caminata, float velocidad, Color camiseta, float luz, SkinGL skin)
+        // Lo que lleva en la mano y el golpe en curso del modelo que se está dibujando.
+        private static int objetoMano;
+        private static float giroGolpe;
+
+        /// <summary>
+        /// Dibuja el modelo con los pies en "pos" mirando según giro e inclinación. "golpe" va de 0 a 1 mientras
+        /// el brazo derecho da un golpe (0 = sin golpe) y "objeto" es el id del bloque u objeto que lleva en la mano.
+        /// </summary>
+        public static void Dibujar(Vec3 pos, float giro, float inclinacion, float caminata, float velocidad, Color camiseta, float luz, SkinGL skin,
+                                   float golpe = 0f, int objeto = 0)
         {
             const float escala = 0.9f; // el modelo mide 2 unidades; el jugador 1,8 bloques
             float balanceo = (float)Math.Sin(caminata) * Math.Min(1f, velocidad / 4f) * 38f;
+            objetoMano = objeto;
+            giroGolpe = golpe > 0 && golpe < 1 ? (float)Math.Sin(golpe * Math.PI) * 95f : 0f;
 
             GL.glPushMatrix();
             GL.glTranslatef(pos.X, pos.Y, pos.Z);
@@ -80,6 +90,58 @@ namespace BlockForge.Motor
             if (skin != null && skin.Textura != 0) ConSkin(skin, inclinacion, balanceo, luz);
             else SinSkin(inclinacion, balanceo, camiseta, luz);
             GL.glPopMatrix();
+        }
+
+        /// <summary>
+        /// El objeto en la mano derecha, en coordenadas del brazo (el hombro en el origen y la mano 10 píxeles más abajo):
+        /// las espadas y los objetos planos como un dibujo que sale hacia delante; los bloques como un cubo pequeño.
+        /// </summary>
+        private static void DibujarObjetoMano(float luz, uint texturaActual)
+        {
+            if (objetoMano <= 0) return;
+            Apariencia a = Atlas.Obtener(objetoMano);
+            if (a == null || a.Modo == ModoDibujo.Aire) return;
+            GL.glEnable(GL.TEXTURE_2D);
+            GL.glBindTexture(GL.TEXTURE_2D, Atlas.Textura);
+            GL.glEnable(GL.ALPHA_TEST);
+            GL.glDisable(GL.CULL_FACE);
+            GL.glColor4f(luz, luz, luz, 1f);
+            float u0, v0, u1, v1;
+            if (a.Plano)
+            {
+                // Mango en la mano y la punta hacia delante y arriba.
+                Atlas.Uv(a.Icono, out u0, out v0, out u1, out v1);
+                GL.glBegin(GL.QUADS);
+                GL.glTexCoord2f(u0, v1); GL.glVertex3f(0, -12 * P, 1 * P);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(0, -12 * P, -9 * P);
+                GL.glTexCoord2f(u1, v0); GL.glVertex3f(0, -2 * P, -9 * P);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(0, -2 * P, 1 * P);
+                GL.glEnd();
+            }
+            else
+            {
+                float x0 = -3 * P, x1 = 3 * P, y0 = -15 * P, y1 = -9 * P, z0 = -5 * P, z1 = 1 * P;
+                GL.glBegin(GL.QUADS);
+                Atlas.Uv(a.Arriba, out u0, out v0, out u1, out v1);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(x0, y1, z0); GL.glTexCoord2f(u0, v1); GL.glVertex3f(x0, y1, z1);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(x1, y1, z1); GL.glTexCoord2f(u1, v0); GL.glVertex3f(x1, y1, z0);
+                Atlas.Uv(a.Lado, out u0, out v0, out u1, out v1);
+                GL.glColor4f(luz * 0.8f, luz * 0.8f, luz * 0.8f, 1f);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(x1, y1, z0); GL.glTexCoord2f(u1, v0); GL.glVertex3f(x0, y1, z0);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(x0, y0, z0); GL.glTexCoord2f(u0, v1); GL.glVertex3f(x1, y0, z0);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(x0, y1, z1); GL.glTexCoord2f(u1, v0); GL.glVertex3f(x1, y1, z1);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(x1, y0, z1); GL.glTexCoord2f(u0, v1); GL.glVertex3f(x0, y0, z1);
+                GL.glColor4f(luz * 0.6f, luz * 0.6f, luz * 0.6f, 1f);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(x0, y1, z0); GL.glTexCoord2f(u1, v0); GL.glVertex3f(x0, y1, z1);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(x0, y0, z1); GL.glTexCoord2f(u0, v1); GL.glVertex3f(x0, y0, z0);
+                GL.glTexCoord2f(u0, v0); GL.glVertex3f(x1, y1, z1); GL.glTexCoord2f(u1, v0); GL.glVertex3f(x1, y1, z0);
+                GL.glTexCoord2f(u1, v1); GL.glVertex3f(x1, y0, z0); GL.glTexCoord2f(u0, v1); GL.glVertex3f(x1, y0, z1);
+                GL.glEnd();
+            }
+            GL.glEnable(GL.CULL_FACE);
+            GL.glDisable(GL.ALPHA_TEST);
+            if (texturaActual != 0) GL.glBindTexture(GL.TEXTURE_2D, texturaActual);
+            else GL.glDisable(GL.TEXTURE_2D);
         }
 
         // ------------------------------------------------------------------ con skin
@@ -122,9 +184,13 @@ namespace BlockForge.Motor
 
             // Brazo derecho (+X) e izquierdo (-X): el hombro gira 2 píxeles bajo la parte superior.
             float cx = (4 + brazo / 2f) * P;
-            Pieza(cx, 22 * P, balanceo, () =>
+            Pieza(cx, 22 * P, balanceo + giroGolpe, () =>
             {
-                if (!capa) Caja(-brazo / 2, -10, -2, brazo / 2, 2, 2, 40, 16, brazo, 12, 4, false, 0, luz, alto);
+                if (!capa)
+                {
+                    Caja(-brazo / 2, -10, -2, brazo / 2, 2, 2, 40, 16, brazo, 12, 4, false, 0, luz, alto);
+                    DibujarObjetoMano(luz, s.Textura);
+                }
                 else if (moderna) Caja(-brazo / 2, -10, -2, brazo / 2, 2, 2, 40, 32, brazo, 12, 4, false, inflar, luz, alto);
             });
             Pieza(-cx, 22 * P, -balanceo, () =>
@@ -213,7 +279,13 @@ namespace BlockForge.Motor
             Parte(0.125f, 0.75f, 0, -balanceo, () => { CajaColor(-0.125f, -0.75f, -0.125f, 0.125f, 0, 0.125f, Pantalon, luz); CajaColor(-0.126f, -0.75f, -0.126f, 0.126f, -0.62f, 0.126f, Zapatos, luz); });
             CajaColor(-0.25f, 0.75f, -0.125f, 0.25f, 1.5f, 0.125f, camiseta, luz);
             Parte(-0.375f, 1.45f, 0, -balanceo, () => { CajaColor(-0.125f, -0.4f, -0.125f, 0.125f, 0.05f, 0.125f, camiseta, luz); CajaColor(-0.125f, -0.7f, -0.125f, 0.125f, -0.4f, 0.125f, Piel, luz); });
-            Parte(0.375f, 1.45f, 0, balanceo, () => { CajaColor(-0.125f, -0.4f, -0.125f, 0.125f, 0.05f, 0.125f, camiseta, luz); CajaColor(-0.125f, -0.7f, -0.125f, 0.125f, -0.4f, 0.125f, Piel, luz); });
+            Parte(0.375f, 1.45f, 0, balanceo + giroGolpe, () =>
+            {
+                CajaColor(-0.125f, -0.4f, -0.125f, 0.125f, 0.05f, 0.125f, camiseta, luz);
+                CajaColor(-0.125f, -0.7f, -0.125f, 0.125f, -0.4f, 0.125f, Piel, luz);
+                GL.glTranslatef(0, 0.05f - 2 * P, 0); // la mano queda 10 píxeles bajo el hombro, como con skin
+                DibujarObjetoMano(luz, 0);
+            });
 
             GL.glPushMatrix();
             GL.glTranslatef(0, 1.5f, 0);

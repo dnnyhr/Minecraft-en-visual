@@ -56,6 +56,7 @@ namespace BlockForge.Data
                 if (version < 2) EjecutarMigracion(conexion, "02_MigrarVersion2.sql");
                 if (version < 3) EjecutarMigracion(conexion, "03_MigrarVersion3.sql");
                 if (version < 4) EjecutarMigracion(conexion, "04_MigrarVersion4.sql");
+                if (version < 5) EjecutarMigracion(conexion, "05_MigrarVersion5.sql");
             }
         }
 

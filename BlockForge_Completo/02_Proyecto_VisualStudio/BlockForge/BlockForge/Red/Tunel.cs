@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,11 +10,10 @@ namespace BlockForge.Red
     /// <summary>
     /// Túnel rápido de Cloudflare ("quick tunnel"): da una dirección https://xxxx.trycloudflare.com que
     /// llega a la partida sin abrir puertos en el router ni crear cuentas. Usa el programa oficial
-    /// cloudflared, que se descarga una sola vez (con permiso del usuario) en %LocalAppData%\BlockForge.
+    /// cloudflared, que se instala una sola vez con winget (el instalador de paquetes de Windows).
     /// </summary>
     public sealed class Tunel : IDisposable
     {
-        public const string UrlDescarga = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe";
         private static readonly Regex PatronUrl = new Regex(@"https://[a-z0-9\-]+\.trycloudflare\.com", RegexOptions.IgnoreCase);
 
         private Process proceso;
@@ -28,20 +26,29 @@ namespace BlockForge.Red
             get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlockForge"); }
         }
 
-        /// <summary>Ruta de cloudflared: junto al juego, en la carpeta de datos, o null si no está.</summary>
+        /// <summary>Comando para instalar cloudflared con el instalador de paquetes de Windows.</summary>
+        public const string ComandoInstalar = "winget install --id Cloudflare.cloudflared -e";
+
+        /// <summary>Ruta de cloudflared (instalado con winget, junto al juego o en el PATH), o null si no está.</summary>
         public static string RutaCloudflared()
         {
+            string programas86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string programas = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string[] candidatos =
             {
                 Path.Combine(AppContext.BaseDirectory, "cloudflared.exe"),
+                Path.Combine(programas86, "cloudflared", "cloudflared.exe"),
+                Path.Combine(programas, "cloudflared", "cloudflared.exe"),
                 Path.Combine(CarpetaDatos, "cloudflared.exe")
             };
             foreach (string c in candidatos)
             {
                 if (File.Exists(c)) return c;
             }
-            // También sirve si el usuario lo instaló (por ejemplo con winget).
-            string path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            // El PATH del sistema y del usuario se leen de nuevo: si se acaba de instalar, el del proceso aún no lo tiene.
+            string path = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty) + ";" +
+                          (Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine) ?? string.Empty) + ";" +
+                          (Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? string.Empty);
             foreach (string carpeta in path.Split(';'))
             {
                 try
@@ -55,39 +62,6 @@ namespace BlockForge.Red
                 }
             }
             return null;
-        }
-
-        /// <summary>Descarga cloudflared desde la página oficial de Cloudflare en GitHub (unos 60 MB).</summary>
-        public static async Task<string> Descargar(IProgress<int> progreso, CancellationToken cancelar)
-        {
-            Directory.CreateDirectory(CarpetaDatos);
-            string destino = Path.Combine(CarpetaDatos, "cloudflared.exe");
-            string temporal = destino + ".descarga";
-            using (HttpClient http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
-            {
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("BlockForge/4.0");
-                using (HttpResponseMessage r = await http.GetAsync(UrlDescarga, HttpCompletionOption.ResponseHeadersRead, cancelar))
-                {
-                    r.EnsureSuccessStatusCode();
-                    long total = r.Content.Headers.ContentLength ?? 0;
-                    using (Stream origen = await r.Content.ReadAsStreamAsync())
-                    using (FileStream archivo = File.Create(temporal))
-                    {
-                        byte[] buffer = new byte[81920];
-                        long leidos = 0;
-                        int n;
-                        while ((n = await origen.ReadAsync(buffer, 0, buffer.Length, cancelar)) > 0)
-                        {
-                            await archivo.WriteAsync(buffer, 0, n, cancelar);
-                            leidos += n;
-                            if (progreso != null && total > 0) progreso.Report((int)(leidos * 100 / total));
-                        }
-                    }
-                }
-            }
-            if (File.Exists(destino)) File.Delete(destino);
-            File.Move(temporal, destino);
-            return destino;
         }
 
         /// <summary>
@@ -146,6 +120,32 @@ namespace BlockForge.Red
                 throw;
             }
             return t;
+        }
+
+        /// <summary>
+        /// Espera a que la dirección nueva responda desde internet: Cloudflare tarda hasta un minuto en
+        /// publicarla, y si alguien intenta entrar antes, su equipo puede recordar el error un rato.
+        /// </summary>
+        public async Task<bool> EsperarDisponible(int esperaMs)
+        {
+            DateTime limite = DateTime.UtcNow.AddMilliseconds(esperaMs);
+            using (System.Net.Http.HttpClient http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(8) })
+            {
+                while (DateTime.UtcNow < limite && Activo)
+                {
+                    try
+                    {
+                        string pagina = await http.GetStringAsync(Url);
+                        if (pagina.Contains("BlockForge")) return true;
+                    }
+                    catch (Exception)
+                    {
+                        // Aún no está publicada.
+                    }
+                    await Task.Delay(3000);
+                }
+            }
+            return false;
         }
 
         public bool Activo

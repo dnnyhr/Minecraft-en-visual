@@ -11,3 +11,6 @@ obj/
 Thumbs.db
 desktop.ini
 ~$*
+
+# Texturas de Minecraft (son de Mojang: cada equipo las descarga)
+terrain.png

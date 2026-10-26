@@ -1,4 +1,4 @@
-namespace BlockForge.Forms
+﻿namespace BlockForge.Forms
 {
     partial class FrmOpcionesPartida
     {
@@ -43,6 +43,7 @@ namespace BlockForge.Forms
             this.lblContrasena = new System.Windows.Forms.Label();
             this.txtContrasena = new System.Windows.Forms.TextBox();
             this.lblNotaContrasena = new System.Windows.Forms.Label();
+            this.chkPvp = new System.Windows.Forms.CheckBox();
             this.btnCancelar = new System.Windows.Forms.Button();
             this.btnAbrir = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.nudPuerto)).BeginInit();
@@ -207,6 +208,16 @@ namespace BlockForge.Forms
             this.lblNotaContrasena.Size = new System.Drawing.Size(428, 36);
             this.lblNotaContrasena.Text = "Compártela solo con tus amigos. En la partida puedes escribir /expulsar nombre en el chat.";
             //
+            // chkPvp
+            //
+            this.chkPvp.AutoSize = true;
+            this.chkPvp.Checked = true;
+            this.chkPvp.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkPvp.Location = new System.Drawing.Point(28, 436);
+            this.chkPvp.Name = "chkPvp";
+            this.chkPvp.TabIndex = 5;
+            this.chkPvp.Text = "PvP: los jugadores pueden atacarse (se cambia con /pvp)";
+            //
             // btnCancelar
             //
             this.btnCancelar.BackColor = System.Drawing.Color.White;
@@ -215,7 +226,7 @@ namespace BlockForge.Forms
             this.btnCancelar.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnCancelar.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.btnCancelar.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
-            this.btnCancelar.Location = new System.Drawing.Point(222, 446);
+            this.btnCancelar.Location = new System.Drawing.Point(222, 478);
             this.btnCancelar.Name = "btnCancelar";
             this.btnCancelar.Size = new System.Drawing.Size(112, 36);
             this.btnCancelar.TabIndex = 6;
@@ -231,7 +242,7 @@ namespace BlockForge.Forms
             this.btnAbrir.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnAbrir.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.btnAbrir.ForeColor = System.Drawing.Color.White;
-            this.btnAbrir.Location = new System.Drawing.Point(342, 446);
+            this.btnAbrir.Location = new System.Drawing.Point(342, 478);
             this.btnAbrir.Name = "btnAbrir";
             this.btnAbrir.Size = new System.Drawing.Size(112, 36);
             this.btnAbrir.TabIndex = 5;
@@ -246,7 +257,7 @@ namespace BlockForge.Forms
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(244)))), ((int)(((byte)(241)))), ((int)(((byte)(234)))));
             this.CancelButton = this.btnCancelar;
-            this.ClientSize = new System.Drawing.Size(480, 502);
+            this.ClientSize = new System.Drawing.Size(480, 534);
             this.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
@@ -270,6 +281,7 @@ namespace BlockForge.Forms
             this.Controls.Add(this.lblContrasena);
             this.Controls.Add(this.txtContrasena);
             this.Controls.Add(this.lblNotaContrasena);
+            this.Controls.Add(this.chkPvp);
             this.Controls.Add(this.btnCancelar);
             this.Controls.Add(this.btnAbrir);
             this.Name = "FrmOpcionesPartida";
@@ -296,6 +308,7 @@ namespace BlockForge.Forms
         private System.Windows.Forms.Label lblContrasena;
         private System.Windows.Forms.TextBox txtContrasena;
         private System.Windows.Forms.Label lblNotaContrasena;
+        private System.Windows.Forms.CheckBox chkPvp;
         private System.Windows.Forms.Button btnCancelar;
         private System.Windows.Forms.Button btnAbrir;
     }

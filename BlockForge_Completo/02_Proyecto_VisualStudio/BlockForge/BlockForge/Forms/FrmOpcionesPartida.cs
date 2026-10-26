@@ -22,6 +22,7 @@ namespace BlockForge.Forms
             {
                 Internet = rdoInternet.Checked,
                 Tunel = rdoTunel.Checked,
+                Pvp = chkPvp.Checked,
                 Puerto = (int)nudPuerto.Value,
                 MaximoJugadores = (int)nudMaximo.Value,
                 Contrasena = txtContrasena.Text.Trim()

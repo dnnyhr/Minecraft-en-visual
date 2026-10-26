@@ -41,6 +41,11 @@
             this.mnuVer = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuPantallaCompleta = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuDepuracion = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuTexturas = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuTexturasClassic = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuTexturasPropias = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuTexturasDescargar = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuTexturasArchivo = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuMultijugador = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuAbrirRed = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuChat = new System.Windows.Forms.ToolStripMenuItem();
@@ -132,9 +137,45 @@
             //
             this.mnuVer.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.mnuPantallaCompleta,
-            this.mnuDepuracion});
+            this.mnuDepuracion,
+            this.mnuTexturas});
             this.mnuVer.Name = "mnuVer";
             this.mnuVer.Text = "&Ver";
+            //
+            // mnuTexturas
+            //
+            this.mnuTexturas.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.mnuTexturasClassic,
+            this.mnuTexturasPropias,
+            this.mnuTexturasDescargar,
+            this.mnuTexturasArchivo});
+            this.mnuTexturas.Name = "mnuTexturas";
+            this.mnuTexturas.Text = "&Texturas";
+            this.mnuTexturas.DropDownOpening += new System.EventHandler(this.mnuTexturas_DropDownOpening);
+            //
+            // mnuTexturasClassic
+            //
+            this.mnuTexturasClassic.Name = "mnuTexturasClassic";
+            this.mnuTexturasClassic.Text = "Minecraft &Classic";
+            this.mnuTexturasClassic.Click += new System.EventHandler(this.mnuTexturasClassic_Click);
+            //
+            // mnuTexturasPropias
+            //
+            this.mnuTexturasPropias.Name = "mnuTexturasPropias";
+            this.mnuTexturasPropias.Text = "&BlockForge (pixel art propio)";
+            this.mnuTexturasPropias.Click += new System.EventHandler(this.mnuTexturasPropias_Click);
+            //
+            // mnuTexturasDescargar
+            //
+            this.mnuTexturasDescargar.Name = "mnuTexturasDescargar";
+            this.mnuTexturasDescargar.Text = "&Descargar las de Minecraft Classic (Mojang)...";
+            this.mnuTexturasDescargar.Click += new System.EventHandler(this.mnuTexturasDescargar_Click);
+            //
+            // mnuTexturasArchivo
+            //
+            this.mnuTexturasArchivo.Name = "mnuTexturasArchivo";
+            this.mnuTexturasArchivo.Text = "&Elegir un terrain.png...";
+            this.mnuTexturasArchivo.Click += new System.EventHandler(this.mnuTexturasArchivo_Click);
             //
             // mnuPantallaCompleta
             //
@@ -295,6 +336,11 @@
         private System.Windows.Forms.ToolStripMenuItem mnuVer;
         private System.Windows.Forms.ToolStripMenuItem mnuPantallaCompleta;
         private System.Windows.Forms.ToolStripMenuItem mnuDepuracion;
+        private System.Windows.Forms.ToolStripMenuItem mnuTexturas;
+        private System.Windows.Forms.ToolStripMenuItem mnuTexturasClassic;
+        private System.Windows.Forms.ToolStripMenuItem mnuTexturasPropias;
+        private System.Windows.Forms.ToolStripMenuItem mnuTexturasDescargar;
+        private System.Windows.Forms.ToolStripMenuItem mnuTexturasArchivo;
         private System.Windows.Forms.ToolStripMenuItem mnuMultijugador;
         private System.Windows.Forms.ToolStripMenuItem mnuAbrirRed;
         private System.Windows.Forms.ToolStripMenuItem mnuChat;

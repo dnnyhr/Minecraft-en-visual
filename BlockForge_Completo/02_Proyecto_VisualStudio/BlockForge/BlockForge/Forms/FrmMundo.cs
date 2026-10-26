@@ -180,37 +180,17 @@ namespace BlockForge.Forms
             if (programa == null)
             {
                 vistaMundo.LiberarMouse();
-                DialogResult r = MessageBox.Show(this,
-                    "Para el túnel se usa cloudflared, el programa oficial y gratuito de Cloudflare.\n\n" +
-                    "Archivo: cloudflared-windows-amd64.exe (unos 60 MB)\n" +
-                    "Origen: github.com/cloudflare/cloudflared (versión más reciente)\n" +
-                    "Se guardará en: " + Tunel.CarpetaDatos + "\n\n" +
-                    "Se descarga una sola vez. ¿Descargarlo ahora?",
-                    "BlockForge — Túnel de Cloudflare", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (r != DialogResult.Yes)
-                {
-                    vistaMundo.AgregarChat("Sin túnel: la partida sigue abierta en tu red local (" + local + ").", amarillo);
-                    return;
-                }
-                vistaMundo.AgregarChat("Descargando cloudflared...", amarillo);
-                int ultimo = -1;
-                Progress<int> progreso = new Progress<int>(p =>
-                {
-                    if (p / 25 != ultimo / 25 && !IsDisposed) vistaMundo.AgregarChat("Descargando cloudflared: " + p + " %", amarillo);
-                    ultimo = p;
-                });
-                try
-                {
-                    programa = await Tunel.Descargar(progreso, System.Threading.CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    if (IsDisposed) return;
-                    vistaMundo.AgregarChat("No se pudo descargar cloudflared: " + ex.Message, rojo);
-                    vistaMundo.AgregarChat("Puedes bajarlo a mano desde github.com/cloudflare/cloudflared/releases y ponerlo junto a BlockForge.exe.", rojo);
-                    return;
-                }
-                if (IsDisposed || red == null) return;
+                try { Clipboard.SetText(Tunel.ComandoInstalar); } catch (Exception) { }
+                MessageBox.Show(this,
+                    "Para el túnel se usa cloudflared, el programa oficial y gratuito de Cloudflare, y no está instalado.\n\n" +
+                    "Instálalo una sola vez abriendo una terminal (PowerShell) y escribiendo:\n\n" +
+                    "    " + Tunel.ComandoInstalar + "\n\n" +
+                    "(El comando ya quedó copiado: pégalo con clic derecho.) Después vuelve a abrir la partida con " +
+                    "«Internet fácil». Mientras tanto la partida sigue abierta en tu red local.",
+                    "BlockForge — Túnel de Cloudflare", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                vistaMundo.AgregarChat("Falta instalar cloudflared: " + Tunel.ComandoInstalar + " (ver LEEME).", rojo);
+                vistaMundo.AgregarChat("La partida sigue abierta en tu red local (" + local + ").", amarillo);
+                return;
             }
 
             vistaMundo.AgregarChat("Abriendo el túnel de Cloudflare...", amarillo);
@@ -230,6 +210,10 @@ namespace BlockForge.Forms
                 tunel = null;
                 return;
             }
+            vistaMundo.AgregarChat("Túnel creado. Cloudflare está publicando la dirección (puede tardar hasta un minuto)...", amarillo);
+            bool listo = await tunel.EsperarDisponible(120000);
+            if (IsDisposed || red == null || tunel == null) return;
+            if (!listo) vistaMundo.AgregarChat("La dirección todavía no responde desde aquí; compártela igual y que reintenten en un minuto.", rojo);
             vistaMundo.Invitacion = tunel.Url;
             vistaMundo.InfoConexion = "Internet: " + tunel.Url + (red.TieneContrasena ? " · con contraseña" : "") + "\nRed local: " + local;
             vistaMundo.AgregarChat("¡Listo! Tus amigos entran pegando " + tunel.Url + " en «Unirse a partida».", verde);
@@ -381,6 +365,69 @@ namespace BlockForge.Forms
         {
             vistaMundo.Volando = !vistaMundo.Volando;
             ActualizarEstado();
+        }
+
+        // ------------------------------------------------------------------ texturas
+        private void mnuTexturas_DropDownOpening(object sender, EventArgs e)
+        {
+            mnuTexturasClassic.Enabled = Motor.TexturasClassic.Disponibles;
+            mnuTexturasClassic.Checked = Motor.Atlas.ClassicActivas;
+            mnuTexturasPropias.Checked = !Motor.Atlas.ClassicActivas;
+        }
+
+        private void mnuTexturasClassic_Click(object sender, EventArgs e)
+        {
+            Motor.TexturasClassic.Preferidas = true;
+            vistaMundo.RecargarTexturas();
+        }
+
+        private void mnuTexturasPropias_Click(object sender, EventArgs e)
+        {
+            Motor.TexturasClassic.Preferidas = false;
+            vistaMundo.RecargarTexturas();
+        }
+
+        private async void mnuTexturasDescargar_Click(object sender, EventArgs e)
+        {
+            vistaMundo.LiberarMouse();
+            if (MessageBox.Show(this,
+                    "Se descargará el cliente oficial de Minecraft Classic 0.30 desde los servidores de Mojang " +
+                    "(launcher.mojang.com, unos 290 KB) y se guardará solo su imagen terrain.png en:\n\n" + Motor.TexturasClassic.Ruta +
+                    "\n\nLas texturas son de Mojang: se usan en este equipo y no se incluyen en el proyecto. ¿Descargar?",
+                    "BlockForge — Texturas de Minecraft Classic", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+                await Motor.TexturasClassic.Descargar();
+                if (IsDisposed) return;
+                vistaMundo.RecargarTexturas();
+            }
+            catch (Exception ex)
+            {
+                Mensajes.Error("No se pudieron descargar las texturas: " + ex.Message + "\n\nTambién puedes elegir un terrain.png con «Elegir un terrain.png».");
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+
+        private void mnuTexturasArchivo_Click(object sender, EventArgs e)
+        {
+            vistaMundo.LiberarMouse();
+            using (OpenFileDialog dialogo = new OpenFileDialog { Filter = "terrain.png de Minecraft Classic|*.png", Title = "Elegir texturas (terrain.png)" })
+            {
+                if (dialogo.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    Motor.TexturasClassic.Importar(dialogo.FileName);
+                    vistaMundo.RecargarTexturas();
+                }
+                catch (Exception ex)
+                {
+                    Mensajes.Error("No se pudo usar esa imagen: " + ex.Message);
+                }
+            }
         }
 
         private void mnuDepuracion_Click(object sender, EventArgs e)

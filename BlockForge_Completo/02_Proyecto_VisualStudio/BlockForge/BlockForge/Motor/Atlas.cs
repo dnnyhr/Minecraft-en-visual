@@ -55,7 +55,11 @@ namespace BlockForge.Motor
                          DienteLeon = 29, Aciano = 30, HierbaAlta = 31, Brote = 32, Carbon = 33, Manzana = 34,
                          ChuletaCruda = 35, ChuletaCocida = 36, FileteCrudo = 37, FileteCocido = 38, PolloCrudo = 39,
                          PolloCocido = 40, CarnePodrida = 41, CorazonLleno = 42, CorazonMedio = 43, CorazonVacio = 44,
-                         MusloLleno = 45, MusloMedio = 46, MusloVacio = 47, Burbuja = 48, Sol = 49, Luna = 50;
+                         MusloLleno = 45, MusloMedio = 46, MusloVacio = 47, Burbuja = 48, Sol = 49, Luna = 50,
+                         Roca = 51, MineralHierro = 52, MineralDiamante = 53, BloqueHierro = 54, BloqueDiamante = 55,
+                         LanaNaranja = 56, LanaVerde = 57, LanaCeleste = 58, LanaMorada = 59, LanaRosa = 60, LanaGris = 61,
+                         LingoteHierro = 62, Diamante = 63, EspadaMadera = 64, EspadaPiedra = 65, EspadaHierro = 66,
+                         EspadaDiamante = 67, PiedraMusgosa = 68, Obsidiana = 69;
 
         public static readonly Apariencia[] PorId = new Apariencia[256];
         public static uint Textura { get; private set; }
@@ -90,6 +94,18 @@ namespace BlockForge.Motor
             DibujarHojas(Hojas);
             DibujarGrava(Grava);
             DibujarNuevos();
+            ClassicActivas = TexturasClassic.Aplicar(pixeles, Tamano, Tile);
+        }
+
+        /// <summary>Se están usando las texturas de Minecraft Classic (terrain.png).</summary>
+        public static bool ClassicActivas { get; private set; }
+
+        /// <summary>Vuelve a generar el atlas (por ejemplo, al cambiar de texturas) y lo sube de nuevo. Requiere contexto GL.</summary>
+        public static void Recargar(IList<TipoBloque> tipos)
+        {
+            Liberar();
+            Preparar(tipos);
+            SubirTexturas();
         }
 
         private static void ConfigurarTipos(IList<TipoBloque> tipos)
@@ -124,7 +140,8 @@ namespace BlockForge.Motor
                         break;
                 }
                 if (tipo.Categoria == TipoBloque.Planta) a.Modo = ModoDibujo.Planta;
-                a.Plano = tipo.Categoria == TipoBloque.Planta || tipo.Categoria == TipoBloque.Comida || tipo.Categoria == TipoBloque.Material;
+                a.Plano = tipo.Categoria == TipoBloque.Planta || tipo.Categoria == TipoBloque.Comida || tipo.Categoria == TipoBloque.Material ||
+                          tipo.Categoria == TipoBloque.Herramienta;
                 a.Icono = a.Lado;
                 a.DejaPasarSol = a.Modo == ModoDibujo.Planta || a.Modo == ModoDibujo.Vidrio;
                 PorId[tipo.IdTipoBloque] = a;
@@ -219,6 +236,25 @@ namespace BlockForge.Motor
                 case "pollo crudo": return PolloCrudo;
                 case "pollo cocido": return PolloCocido;
                 case "carne podrida": return CarnePodrida;
+                case "roca": return Roca;
+                case "piedra musgosa": return PiedraMusgosa;
+                case "obsidiana": return Obsidiana;
+                case "mineral de hierro": return MineralHierro;
+                case "mineral de diamante": return MineralDiamante;
+                case "bloque de hierro": return BloqueHierro;
+                case "bloque de diamante": return BloqueDiamante;
+                case "lana naranja": return LanaNaranja;
+                case "lana verde": return LanaVerde;
+                case "lana celeste": return LanaCeleste;
+                case "lana morada": return LanaMorada;
+                case "lana rosa": return LanaRosa;
+                case "lana gris": return LanaGris;
+                case "lingote de hierro": return LingoteHierro;
+                case "diamante": return Diamante;
+                case "espada de madera": return EspadaMadera;
+                case "espada de piedra": return EspadaPiedra;
+                case "espada de hierro": return EspadaHierro;
+                case "espada de diamante": return EspadaDiamante;
                 default: return -1;
             }
         }

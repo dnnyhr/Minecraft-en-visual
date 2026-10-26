@@ -287,6 +287,19 @@ namespace BlockForge.Controls
             render.ReconstruirPendientes(int.MaxValue);
         }
 
+        /// <summary>Vuelve a armar el atlas (al cambiar entre las texturas de Minecraft Classic y las propias).</summary>
+        public void RecargarTexturas()
+        {
+            if (!listo)
+            {
+                Atlas.Preparar(CatalogoBloques.Tipos);
+                return;
+            }
+            GL.wglMakeCurrent(hdc, contexto);
+            Atlas.Recargar(CatalogoBloques.Tipos);
+            Avisar(Atlas.ClassicActivas ? "Texturas de Minecraft Classic." : "Texturas de BlockForge.", Color.White, 3f);
+        }
+
         protected override void OnHandleDestroyed(EventArgs e)
         {
             Application.Idle -= AlEstarInactivo;
@@ -480,7 +493,7 @@ namespace BlockForge.Controls
             int x = objetivo.X, y = objetivo.Y, z = objetivo.Z;
             int id = mundo.ObtenerBloque(x, y, z);
             ResultadoConstruccion r = juego.Eliminar(x, y, z);
-            balanceo = 1f;
+            Balancear();
             if (r == ResultadoConstruccion.Recolectado || r == ResultadoConstruccion.RetiradoSinSumar)
             {
                 particulas.Romper(x, y, z, Atlas.Obtener(id).Lado, render.BrilloEn(x, y + 1, z));
@@ -511,7 +524,7 @@ namespace BlockForge.Controls
             if (tipo == null || vida.Muerto) return;
             if (!tipo.EsColocable)
             {
-                if (!tipo.EsComida) Avisar("El " + tipo.Nombre.ToLowerInvariant() + " no se coloca: sirve para fabricar (E).", Color.FromArgb(255, 210, 120));
+                if (!tipo.EsComida && tipo.Categoria != TipoBloque.Herramienta) Avisar("El " + tipo.Nombre.ToLowerInvariant() + " no se coloca: sirve para fabricar (E).", Color.FromArgb(255, 210, 120));
                 return;
             }
             if (!mundo.EstaDentro(x, y, z))
@@ -524,7 +537,7 @@ namespace BlockForge.Controls
                 return; // no se coloca un bloque encima del propio jugador
             }
             ResultadoConstruccion r = juego.Colocar(x, y, z, tipo);
-            balanceo = 1f;
+            Balancear();
             if (r == ResultadoConstruccion.Colocado)
             {
                 CambioLocal(x, y, z);
