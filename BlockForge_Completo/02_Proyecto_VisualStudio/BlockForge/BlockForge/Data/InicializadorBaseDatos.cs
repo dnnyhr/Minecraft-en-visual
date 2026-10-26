@@ -11,22 +11,54 @@ namespace BlockForge.Data
     /// Crea BlockForgeDB la primera vez que se ejecuta la aplicación (Database\01_CrearBaseDatos.sql)
     /// y migra las bases de la versión 1 (mundos 2D) al esquema actual (Database\02_MigrarVersion2.sql).
     /// </summary>
+    /// <summary>La base está registrada en LocalDB pero sus archivos se borraron o se movieron.</summary>
+    public class ArchivosBaseFaltantesException : Exception
+    {
+        public string Ruta { get; private set; }
+
+        public ArchivosBaseFaltantesException(string ruta)
+            : base("Los archivos de la base de datos no están en " + ruta + ".")
+        {
+            Ruta = ruta;
+        }
+    }
+
     public static class InicializadorBaseDatos
     {
+        /// <summary>
+        /// Carpeta de los archivos de las bases nuevas. Antes LocalDB los dejaba sueltos en la carpeta del usuario
+        /// (C:\Users\nombre), donde es fácil borrarlos sin querer.
+        /// </summary>
+        public static string CarpetaDatos
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlockForge", "Datos"); }
+        }
+
         public static void Asegurar()
         {
             bool existe;
             using (SqlConnection master = Conexion.AbrirMaster())
             {
-                SqlCommand consulta = new SqlCommand("SELECT DB_ID(@nombre)", master);
+                SqlCommand consulta = new SqlCommand("SELECT physical_name FROM sys.master_files WHERE database_id = DB_ID(@nombre) AND type = 0", master);
                 consulta.Parameters.AddWithValue("@nombre", Conexion.NombreBaseDatos);
-                existe = consulta.ExecuteScalar() != DBNull.Value;
+                object archivo = consulta.ExecuteScalar();
+                existe = archivo != null && archivo != DBNull.Value;
+                if (existe && !File.Exists((string)archivo)) throw new ArchivosBaseFaltantesException((string)archivo);
 
                 if (!existe)
                 {
+                    Directory.CreateDirectory(CarpetaDatos);
                     foreach (string lote in ObtenerLotes(LeerScript("01_CrearBaseDatos.sql")))
                     {
-                        using (SqlCommand comando = new SqlCommand(lote, master))
+                        string sql = lote;
+                        if (lote.Trim().StartsWith("CREATE DATABASE", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string datos = Path.Combine(CarpetaDatos, Conexion.NombreBaseDatos);
+                            sql = "CREATE DATABASE " + Conexion.NombreBaseDatos +
+                                  " ON (NAME = N'" + Conexion.NombreBaseDatos + "', FILENAME = N'" + datos.Replace("'", "''") + ".mdf')" +
+                                  " LOG ON (NAME = N'" + Conexion.NombreBaseDatos + "_log', FILENAME = N'" + datos.Replace("'", "''") + "_log.ldf');";
+                        }
+                        using (SqlCommand comando = new SqlCommand(sql, master))
                         {
                             comando.CommandTimeout = 120;
                             comando.ExecuteNonQuery();
@@ -37,6 +69,27 @@ namespace BlockForge.Data
 
             // La base nueva se crea con el esquema 3 y las migraciones posteriores se aplican igual que en una existente.
             MigrarSiHaceFalta();
+        }
+
+        /// <summary>
+        /// Quita de LocalDB el registro de una base cuyos archivos ya no existen, para poder crear una nueva.
+        /// No borra ningún archivo (si estaban en la Papelera, siguen ahí).
+        /// </summary>
+        public static void OlvidarBaseSinArchivos()
+        {
+            using (SqlConnection master = Conexion.AbrirMaster())
+            {
+                try
+                {
+                    new SqlCommand("DROP DATABASE [" + Conexion.NombreBaseDatos + "]", master).ExecuteNonQuery();
+                }
+                catch (SqlException)
+                {
+                    // Avisa que no encontró los archivos, pero el registro se quita igual.
+                }
+                new SqlCommand("CHECKPOINT", master).ExecuteNonQuery();
+            }
+            SqlConnection.ClearAllPools();
         }
 
         /// <summary>Versión actual: la 1 no tenía tabla VersionEsquema.</summary>

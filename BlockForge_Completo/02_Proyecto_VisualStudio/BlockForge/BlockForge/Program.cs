@@ -22,7 +22,22 @@ namespace BlockForge
             try
             {
                 // Crea BlockForgeDB la primera vez y carga el catálogo de bloques.
-                InicializadorBaseDatos.Asegurar();
+                try
+                {
+                    InicializadorBaseDatos.Asegurar();
+                }
+                catch (ArchivosBaseFaltantesException ex)
+                {
+                    bool nueva = Mensajes.Confirmar(
+                        "No se encuentran los archivos de la base de datos BlockForgeDB:\n" + ex.Ruta + "\n\n" +
+                        "Probablemente se borraron o se movieron. Si están en la Papelera de reciclaje, cancela, restáuralos " +
+                        "(BlockForgeDB y BlockForgeDB_log) y vuelve a abrir BlockForge para recuperar tus mundos.\n\n" +
+                        "¿Crear una base de datos nueva y vacía? (Se pierden los mundos y las cuentas creadas; " +
+                        "vuelven las cuentas de prueba.)", "BlockForge — Base de datos");
+                    if (!nueva) return;
+                    InicializadorBaseDatos.OlvidarBaseSinArchivos();
+                    InicializadorBaseDatos.Asegurar();
+                }
                 CatalogoBloques.Cargar();
             }
             catch (Exception ex)

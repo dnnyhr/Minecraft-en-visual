@@ -295,6 +295,11 @@ BlockForge/
   eventos → Registros de aplicaciones → Microsoft → Windows → CodeIntegrity → Operational. Desactivar Smart App Control
   también lo evita, pero en Windows 11 no se puede volver a activar sin reinstalar, así que no lo recomendamos.
 - **"No fue posible iniciar la vista 3D (OpenGL)":** actualicen el controlador de la tarjeta de video. En máquinas virtuales o escritorio remoto sin aceleración, OpenGL puede no estar disponible.
+- **"Cannot open database BlockForgeDB requested by the login" o "No se encuentran los archivos de la base de datos":**
+  se borraron o se movieron `BlockForgeDB.mdf` y `BlockForgeDB_log.ldf`. Las bases antiguas los tenían sueltos en la
+  carpeta del usuario (`C:\Users\nombre`), donde es fácil borrarlos sin querer; las nuevas los guardan en
+  `%LocalAppData%\BlockForge\Datos`. Si están en la **Papelera**, restáuralos y abre BlockForge de nuevo para recuperar
+  los mundos. Si no, al abrir BlockForge aparece la opción de **crear una base nueva y vacía**.
 - **Volver a crear la base desde cero:** en Visual Studio, abran **Ver → Explorador de objetos de SQL Server**, conéctense a `(localdb)\MSSQLLocalDB`, eliminen `BlockForgeDB` y ejecuten la aplicación de nuevo.
 - **Usar otro servidor SQL:** cambien la constante `CadenaConexion` en `Data/Conexion.cs`.
 - **No aparece la partida en «Unirse a partida»:** escriban la dirección del anfitrión a mano. Si tampoco conecta, revisen que ambos equipos estén en la misma red y que el Firewall de Windows permita BlockForge en redes privadas (Panel de control → Firewall de Windows Defender → Permitir una aplicación).
