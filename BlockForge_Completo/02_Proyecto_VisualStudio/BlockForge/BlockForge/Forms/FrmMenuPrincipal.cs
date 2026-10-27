@@ -177,11 +177,16 @@ namespace BlockForge.Forms
         private void btnNuevoMundo_Click(object sender, EventArgs e)
         {
             Mundo mundo = null;
+            Inventario inventario = null;
             using (FrmNuevoMundo dialogo = new FrmNuevoMundo())
             {
-                if (dialogo.ShowDialog(this) == DialogResult.OK) mundo = dialogo.MundoCreado;
+                if (dialogo.ShowDialog(this) == DialogResult.OK)
+                {
+                    mundo = dialogo.MundoCreado;
+                    inventario = dialogo.InventarioCreado;
+                }
             }
-            if (mundo != null) AbrirMundo(mundo, new Inventario());
+            if (mundo != null) AbrirMundo(mundo, inventario ?? new Inventario());
         }
 
         private void btnCargarMundo_Click(object sender, EventArgs e)

@@ -13,6 +13,11 @@ namespace BlockForge.Forms
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public Mundo MundoCreado { get; private set; }
 
+        /// <summary>Inventario inicial (con materiales si se eligió la casita).</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Inventario InventarioCreado { get; private set; }
+
         public FrmNuevoMundo()
         {
             InitializeComponent();
@@ -47,7 +52,10 @@ namespace BlockForge.Forms
             try
             {
                 Cursor = Cursors.WaitCursor;
-                MundoCreado = new MundoService().Crear(txtNombre.Text, (int)nudAncho.Value, (int)nudLargo.Value, (int)nudAlto.Value, chkLagos.Checked);
+                Inventario inventario;
+                MundoCreado = new MundoService().Crear(txtNombre.Text, (int)nudAncho.Value, (int)nudLargo.Value, (int)nudAlto.Value,
+                                                       chkLagos.Checked, chkCasa.Checked, out inventario);
+                InventarioCreado = inventario;
                 DialogResult = DialogResult.OK;
                 Close();
             }

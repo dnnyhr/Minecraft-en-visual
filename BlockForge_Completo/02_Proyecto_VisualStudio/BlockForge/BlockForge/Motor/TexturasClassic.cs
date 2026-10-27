@@ -116,7 +116,9 @@ namespace BlockForge.Motor
             try
             {
                 Directory.CreateDirectory(Carpeta);
-                File.AppendAllText(Path.Combine(Carpeta, "texturas.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + texto + Environment.NewLine);
+                string origen = Environment.ProcessPath + (System.Diagnostics.Debugger.IsAttached ? " (depurando en Visual Studio)" : "");
+                File.AppendAllText(Path.Combine(Carpeta, "texturas.log"),
+                                   DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + texto + "  [" + origen + "]" + Environment.NewLine);
             }
             catch (Exception)
             {

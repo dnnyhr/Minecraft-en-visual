@@ -40,6 +40,15 @@ namespace BlockForge
                 }
                 CatalogoBloques.Cargar();
             }
+            catch (Exception ex) when (Conexion.FaltaLocalDb(ex))
+            {
+                Mensajes.Error("Este equipo no tiene SQL Server Express LocalDB, que BlockForge usa para guardar los mundos.\n\n" +
+                    "Para instalarlo:\n" +
+                    "• Con Visual Studio: Visual Studio Installer → Modificar → Componentes individuales → «SQL Server Express LocalDB».\n" +
+                    "• Sin Visual Studio: descarga «SQL Server Express» de Microsoft y en el instalador elige «Descargar medios» → «LocalDB».\n\n" +
+                    "Después vuelve a abrir BlockForge.\n\nDetalle: " + ex.Message);
+                return;
+            }
             catch (Exception ex)
             {
                 Mensajes.Error("No fue posible preparar la base de datos BlockForgeDB.\n\n" +

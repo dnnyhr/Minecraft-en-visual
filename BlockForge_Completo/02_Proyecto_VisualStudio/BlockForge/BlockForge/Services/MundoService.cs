@@ -24,6 +24,13 @@ namespace BlockForge.Services
         /// <summary>RF-03 y RF-04: valida, genera el terreno y lo guarda en una transacción.</summary>
         public Mundo Crear(string nombre, int ancho, int largo, int alto, bool conLagos)
         {
+            Inventario inventario;
+            return Crear(nombre, ancho, largo, alto, conLagos, false, out inventario);
+        }
+
+        /// <summary>Igual, y con conCasa = true construye además la casita junto al punto de aparición.</summary>
+        public Mundo Crear(string nombre, int ancho, int largo, int alto, bool conLagos, bool conCasa, out Inventario inventario)
+        {
             string mensaje;
             nombre = (nombre ?? string.Empty).Trim();
             if (!Validaciones.NombreMundoValido(nombre, out mensaje)) throw new ExcepcionValidacion(mensaje);
@@ -45,6 +52,8 @@ namespace BlockForge.Services
                 FechaCreacion = DateTime.Now
             };
             GeneradorTerreno.Generar(mundo);
+            inventario = new Inventario();
+            if (conCasa && Construcciones.ConstruirCasa(mundo, new Random(mundo.Semilla))) inventario = Construcciones.MaterialesIniciales();
 
             using (SqlConnection conexion = Conexion.Abrir())
             using (SqlTransaction transaccion = conexion.BeginTransaction())
@@ -53,7 +62,7 @@ namespace BlockForge.Services
                 {
                     mundo.IdMundo = mundos.Insertar(conexion, transaccion, mundo);
                     bloques.Reemplazar(conexion, transaccion, mundo);
-                    inventarios.Guardar(conexion, transaccion, mundo.IdMundo, new Inventario(), CatalogoBloques.Tipos);
+                    inventarios.Guardar(conexion, transaccion, mundo.IdMundo, inventario, CatalogoBloques.Tipos);
                     partidas.Registrar(conexion, transaccion, mundo.IdMundo, mundo.ContarBloques());
                     transaccion.Commit();
                 }

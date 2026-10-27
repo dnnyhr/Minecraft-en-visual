@@ -41,6 +41,7 @@
             this.nudLargo = new System.Windows.Forms.NumericUpDown();
             this.lblRangos = new System.Windows.Forms.Label();
             this.chkLagos = new System.Windows.Forms.CheckBox();
+            this.chkCasa = new System.Windows.Forms.CheckBox();
             this.btnCancelar = new System.Windows.Forms.Button();
             this.btnCrear = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.nudAncho)).BeginInit();
@@ -215,7 +216,15 @@
             this.chkLagos.Name = "chkLagos";
             this.chkLagos.TabIndex = 4;
             this.chkLagos.Text = "Generar lagos de agua";
-            // 
+            //
+            // chkCasa
+            //
+            this.chkCasa.AutoSize = true;
+            this.chkCasa.Location = new System.Drawing.Point(26, 292);
+            this.chkCasa.Name = "chkCasa";
+            this.chkCasa.TabIndex = 5;
+            this.chkCasa.Text = "Empezar con una casita con jardín y materiales";
+            //
             // btnCancelar
             // 
             this.btnCancelar.BackColor = System.Drawing.Color.White;
@@ -275,6 +284,7 @@
             this.Controls.Add(this.nudAlto);
             this.Controls.Add(this.lblRangos);
             this.Controls.Add(this.chkLagos);
+            this.Controls.Add(this.chkCasa);
             this.Controls.Add(this.btnCancelar);
             this.Controls.Add(this.btnCrear);
             this.Name = "FrmNuevoMundo";
@@ -301,6 +311,7 @@
         private System.Windows.Forms.NumericUpDown nudLargo;
         private System.Windows.Forms.Label lblRangos;
         private System.Windows.Forms.CheckBox chkLagos;
+        private System.Windows.Forms.CheckBox chkCasa;
         private System.Windows.Forms.Button btnCancelar;
         private System.Windows.Forms.Button btnCrear;
     }

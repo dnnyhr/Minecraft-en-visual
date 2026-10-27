@@ -147,6 +147,12 @@ namespace BlockForge.Controls
 
             if (listo) CrearRender();
             Avisar("Haz clic para jugar. Rompe bloques, fabrica con E y come para recuperar vida.", Color.White, 7f);
+            AgregarChat(Atlas.ClassicActivas
+                            ? "Texturas: Minecraft Classic (Ver → Texturas para cambiarlas)."
+                            : TexturasClassic.Disponibles
+                                ? "Texturas: BlockForge (Ver → Texturas → Minecraft Classic para usar las de Classic)."
+                                : "Texturas: BlockForge (Ver → Texturas → Descargar las de Minecraft Classic).",
+                        Color.FromArgb(200, 220, 255));
         }
 
         /// <summary>Copia la posición del jugador al mundo para guardarla con la partida.</summary>

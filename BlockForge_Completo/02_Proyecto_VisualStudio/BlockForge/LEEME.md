@@ -44,6 +44,22 @@ Cada usuario puede cambiar su **nombre** y su **contraseña** desde el menú pri
 ven los demás en el multijugador: de 4 a 20 letras o números, sin espacios y sin repetir el de otra cuenta.
 Conviene que cada uno cambie la contraseña de prueba por una propia.
 
+### Jugar en otra PC (por ejemplo, la de una amiga)
+
+En la otra PC hace falta lo mismo que en la tuya:
+
+1. **Visual Studio 2026** con la carga de trabajo **Desarrollo de escritorio de .NET** (instala .NET 10).
+2. El componente **SQL Server Express LocalDB** (Visual Studio Installer → Modificar → Componentes individuales).
+3. Descargar el proyecto (en GitHub: **Code → Download ZIP**), **descomprimirlo** y abrir el archivo
+   **BlockForge.sln** (no la carpeta). En el **Explorador de soluciones** debe verse el proyecto **BlockForge**;
+   si aparece «(no se puede cargar)», falta la carga de trabajo del paso 1.
+4. Arriba debe decir **▶ BlockForge**; si no, clic derecho sobre el proyecto → **Establecer como proyecto de inicio**.
+   Luego **F5**.
+
+Si Visual Studio solo dice **«Listo»** y no pasa nada, casi siempre es que se abrió la carpeta en lugar de
+`BlockForge.sln`, o que el proyecto no cargó por el paso 1. En **Ver → Salida** y **Ver → Lista de errores** aparece el motivo.
+Si BlockForge abre pero dice que falta LocalDB, el mensaje explica cómo instalarlo.
+
 ## Controles del juego
 
 Hagan **clic en la vista** para capturar el mouse; **Esc** lo libera y abre el **menú de pausa**
@@ -71,6 +87,9 @@ Hagan **clic en la vista** para capturar el mouse; **Esc** lo libera y abre el *
 | F11                         | Pantalla completa                                              |
 
 Los mundos nuevos empiezan con el inventario vacío: primero hay que romper bloques para luego poder construir.
+Si al crear el mundo marcas **«Empezar con una casita con jardín y materiales»**, aparece junto a una casa de madera
+con techo a dos aguas, chimenea, cama, estantería y lámparas, un jardín con camino, flores, estanque y seto,
+y 64 unidades de varios bloques para seguir construyendo.
 El agua y la lava no se recolectan y la capa inferior del mundo no se puede romper.
 El mouse se lee con **Raw Input** (el movimiento crudo del ratón, sin la aceleración de Windows), así que va fluido
 tanto con mouse como con trackpad; la sensibilidad se ajusta en **Configuración**.
@@ -295,6 +314,10 @@ BlockForge/
   eventos → Registros de aplicaciones → Microsoft → Windows → CodeIntegrity → Operational. Desactivar Smart App Control
   también lo evita, pero en Windows 11 no se puede volver a activar sin reinstalar, así que no lo recomendamos.
 - **"No fue posible iniciar la vista 3D (OpenGL)":** actualicen el controlador de la tarjeta de video. En máquinas virtuales o escritorio remoto sin aceleración, OpenGL puede no estar disponible.
+- **"No se encontró el servidor" aunque LocalDB está instalado:** a veces LocalDB queda marcada como «detenida»
+  (`sqllocaldb info`) mientras su servidor sigue funcionando, y solo el primer programa puede usarla. BlockForge ahora
+  lo detecta y se conecta directamente a ese servidor. Si aun así falla, cierra BlockForge y Visual Studio y ejecuta
+  `sqllocaldb stop MSSQLLocalDB` y `sqllocaldb start MSSQLLocalDB`.
 - **"Cannot open database BlockForgeDB requested by the login" o "No se encuentran los archivos de la base de datos":**
   se borraron o se movieron `BlockForgeDB.mdf` y `BlockForgeDB_log.ldf`. Las bases antiguas los tenían sueltos en la
   carpeta del usuario (`C:\Users\nombre`), donde es fácil borrarlos sin querer; las nuevas los guardan en
