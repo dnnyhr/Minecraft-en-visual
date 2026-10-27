@@ -39,23 +39,35 @@ namespace BlockForge.Data
         {
             SqlConnectionStringBuilder constructor = new SqlConnectionStringBuilder(CadenaConexion);
             if (catalogo != null) constructor.InitialCatalog = catalogo;
-            if (servidorAlternativo != null) constructor.DataSource = servidorAlternativo;
-            try
+            bool esLocalDb = constructor.DataSource.StartsWith("(localdb)", StringComparison.OrdinalIgnoreCase);
+
+            // LocalDB a veces queda marcada como "detenida" aunque su servidor siga funcionando, y entonces
+            // (localdb)\MSSQLLocalDB no responde (o tarda medio minuto en fallar). Por eso, si ya hay un servidor
+            // en marcha, se usa directamente su tubería; si no lo hay, falla al instante y se sigue por el camino normal.
+            if (esLocalDb)
             {
-                return AbrirCon(constructor.ConnectionString);
+                string tuberia = servidorAlternativo ?? TuberiaLocalDbActiva();
+                if (tuberia != null)
+                {
+                    SqlConnectionStringBuilder directo = new SqlConnectionStringBuilder(constructor.ConnectionString)
+                    {
+                        DataSource = "np:" + tuberia,
+                        ConnectTimeout = 5
+                    };
+                    try
+                    {
+                        SqlConnection conexion = AbrirCon(directo.ConnectionString);
+                        servidorAlternativo = tuberia;
+                        return conexion;
+                    }
+                    catch (SqlException ex)
+                    {
+                        servidorAlternativo = null;
+                        if (!EsServidorNoEncontrado(ex)) throw; // el servidor respondió con otro error (usuario, base...)
+                    }
+                }
             }
-            catch (SqlException ex)
-            {
-                if (servidorAlternativo != null || !EsServidorNoEncontrado(ex)) throw;
-                // LocalDB a veces queda marcada como "detenida" aunque su proceso siga funcionando, y entonces
-                // nadie más puede conectarse por (localdb)\MSSQLLocalDB. Su tubería sí responde.
-                string tuberia = TuberiaLocalDbActiva();
-                if (tuberia == null) throw;
-                constructor.DataSource = "np:" + tuberia;
-                SqlConnection conexion = AbrirCon(constructor.ConnectionString);
-                servidorAlternativo = constructor.DataSource;
-                return conexion;
-            }
+            return AbrirCon(constructor.ConnectionString);
         }
 
         private static SqlConnection AbrirCon(string cadena)
@@ -73,10 +85,13 @@ namespace BlockForge.Data
             }
         }
 
-        /// <summary>Errores de "no se encontró el servidor" (no los de usuario o base de datos).</summary>
+        /// <summary>
+        /// Errores de conexión ("no se encontró el servidor", tiempo agotado, errores de LocalDB), a diferencia de
+        /// los que da un servidor que sí respondió (usuario sin permiso, base inexistente...), que son de clase menor a 20.
+        /// </summary>
         private static bool EsServidorNoEncontrado(SqlException ex)
         {
-            return ex.Number == -1 || ex.Number == -2 || ex.Number == 2 || ex.Number == 53 || ex.Number == 26;
+            return ex.Class >= 20 || ex.Number == -1 || ex.Number == -2 || ex.Number == 2 || ex.Number == 53 || ex.Number == 26;
         }
 
         /// <summary>
@@ -107,11 +122,14 @@ namespace BlockForge.Data
             }
         }
 
-        /// <summary>Si el error indica que LocalDB no está instalado en este equipo.</summary>
+        /// <summary>
+        /// Si el error indica que LocalDB no está instalado en este equipo (error 52 de la capa de red de SQL Server;
+        /// el 50 es otro: LocalDB está instalado pero no pudo arrancar).
+        /// </summary>
         public static bool FaltaLocalDb(Exception ex)
         {
-            string m = ex.ToString();
-            return m.Contains("Local Database Runtime") || m.Contains("LocalDB") && (m.Contains("instal") || m.Contains("locate"));
+            return Regex.IsMatch(ex.ToString(), @"error:\s*52\b") ||
+                   ex.ToString().IndexOf("Unable to locate a Local Database Runtime installation", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }

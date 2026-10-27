@@ -46,9 +46,36 @@ namespace BlockForge.Motor
             get { return Path.Combine(Carpeta, "texturas.txt"); }
         }
 
+        private const string RecursoIncluido = "BlockForge.terrain.png";
+
+        /// <summary>
+        /// terrain.png que va dentro del ejecutable (solo en las compilaciones hechas en un equipo que tiene
+        /// Recursos\terrain.png; ese archivo no se sube al repositorio).
+        /// </summary>
+        public static bool Incluidas
+        {
+            get { return typeof(TexturasClassic).Assembly.GetManifestResourceInfo(RecursoIncluido) != null; }
+        }
+
         public static bool Disponibles
         {
-            get { return File.Exists(Ruta); }
+            get { return File.Exists(Ruta) || Incluidas; }
+        }
+
+        /// <summary>El terrain.png elegido o descargado por el jugador; si no hay, el incluido en el ejecutable.</summary>
+        private static Bitmap AbrirImagen(out string origen)
+        {
+            if (File.Exists(Ruta))
+            {
+                origen = Ruta;
+                return new Bitmap(Ruta);
+            }
+            origen = "el ejecutable";
+            using (Stream recurso = typeof(TexturasClassic).Assembly.GetManifestResourceStream(RecursoIncluido))
+            using (Bitmap imagen = new Bitmap(recurso))
+            {
+                return new Bitmap(imagen); // copia independiente del flujo, que se cierra aquí
+            }
         }
 
         /// <summary>El jugador quiere las texturas de Classic (si están descargadas). Por defecto, sí.</summary>
@@ -71,12 +98,13 @@ namespace BlockForge.Motor
         {
             if (!Preferidas || !Disponibles)
             {
-                Registrar(!Disponibles ? "No hay terrain.png en " + Ruta + ": se usan las texturas propias." : "El jugador eligió las texturas propias.");
+                Registrar(!Disponibles ? "No hay terrain.png en " + Ruta + " ni en el ejecutable: se usan las texturas propias." : "El jugador eligió las texturas propias.");
                 return false;
             }
+            string de = "?";
             try
             {
-                using (Bitmap origen = new Bitmap(Ruta))
+                using (Bitmap origen = AbrirImagen(out de))
                 {
                     if (origen.Width < 16 || origen.Width % 16 != 0 || origen.Height < origen.Width)
                     {
@@ -100,7 +128,7 @@ namespace BlockForge.Motor
                         }
                     }
                 }
-                Registrar("Texturas de Minecraft Classic aplicadas (" + Mapa.Count + " tiles).");
+                Registrar("Texturas de Minecraft Classic aplicadas (" + Mapa.Count + " tiles, desde " + de + ").");
                 return true;
             }
             catch (Exception ex)

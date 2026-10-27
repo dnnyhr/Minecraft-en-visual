@@ -24,6 +24,8 @@
     <EmbeddedResource Include="Database\04_MigrarVersion4.sql" />
     <EmbeddedResource Include="Database\05_MigrarVersion5.sql" />
     <EmbeddedResource Include="Database\06_MigrarVersion6.sql" />
+    <!-- Texturas de Minecraft Classic: solo si el archivo está en este equipo (no se sube a Git porque son de Mojang). -->
+    <EmbeddedResource Include="Recursos\terrain.png" Condition="Exists('Recursos\terrain.png')" LogicalName="BlockForge.terrain.png" />
   </ItemGroup>
 
 </Project>
