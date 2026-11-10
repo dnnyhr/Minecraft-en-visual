@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 12px/1.45 Inter, "Segoe UI", sans-serif; margin: 0; padding: 14px; color: #212121; }
+  h1 { font-size: 14px; margin: 0 0 6px; color: #2F6B3A; }
+  p { margin: 0 0 10px; color: #5F6368; }
+  label.zona { display: block; border: 1px dashed #9E9E9E; border-radius: 6px; padding: 14px; text-align: center; cursor: pointer; background: #F4F1EA; }
+  label.zona:hover { border-color: #2F6B3A; }
+  input[type=file] { display: none; }
+  .opcion { display: flex; gap: 6px; align-items: center; margin: 10px 0 0; }
+  button { margin-top: 12px; width: 100%; padding: 8px; border: 1px solid #24542D; border-radius: 4px; background: #2F6B3A; color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #9E9E9E; border-color: #9E9E9E; cursor: default; }
+  #estado { margin-top: 10px; white-space: pre-wrap; font-family: Consolas, monospace; font-size: 11px; max-height: 150px; overflow: auto; }
+  .error { color: #C62828; }
+</style>
+</head>
+<body>
+  <h1>Pantallas reales de BlockForge</h1>
+  <p>Elige la carpeta <b>exportacion</b> (la que tiene <code>pantallas.json</code>, las capturas y la carpeta <code>img</code>).
+     Se generó con <code>BlockForge.exe --exportar-figma</code>.</p>
+  <label class="zona" for="carpeta" id="textoZona">Elegir carpeta de exportación…</label>
+  <input id="carpeta" type="file" webkitdirectory multiple>
+  <div class="opcion"><input id="prototipo" type="checkbox" checked><label for="prototipo">Enlazar los botones como prototipo (flujo de navegación)</label></div>
+  <div class="opcion"><input id="referencia" type="checkbox" checked><label for="referencia">Poner al lado la captura real como referencia</label></div>
+  <button id="importar" disabled>Importar a Figma</button>
+  <div id="estado"></div>
+<script>
+  const archivos = {};
+  let datos = null;
+  const estado = document.getElementById('estado');
+  const boton = document.getElementById('importar');
+
+  function escribir(texto, error) {
+    const linea = document.createElement('div');
+    if (error) linea.className = 'error';
+    linea.textContent = texto;
+    estado.appendChild(linea);
+    estado.scrollTop = estado.scrollHeight;
+  }
+
+  document.getElementById('carpeta').addEventListener('change', async (e) => {
+    estado.textContent = '';
+    datos = null;
+    for (const k in archivos) delete archivos[k];
+    for (const f of e.target.files) {
+      // Ruta relativa a la carpeta elegida, sin el nombre de la carpeta: "01_FrmAcceso.png", "img/...".
+      const ruta = f.webkitRelativePath.split('/').slice(1).join('/');
+      if (ruta === 'pantallas.json') datos = JSON.parse(await f.text());
+      else if (ruta.toLowerCase().endsWith('.png')) archivos[ruta] = f;
+    }
+    if (!datos) {
+      escribir('No se encontró pantallas.json en esa carpeta.', true);
+      boton.disabled = true;
+      return;
+    }
+    document.getElementById('textoZona').textContent = datos.pantallas.length + ' pantallas · ' + Object.keys(archivos).length + ' imágenes';
+    escribir('Exportado el ' + datos.generado + ' (' + (datos.entorno || 'Windows') + ').');
+    boton.disabled = false;
+  });
+
+  boton.addEventListener('click', async () => {
+    boton.disabled = true;
+    // Solo se envían las imágenes que usa el archivo.
+    const necesarias = new Set();
+    const recorrer = (n) => { if (n.archivo) necesarias.add(n.archivo); (n.hijos || []).forEach(recorrer); };
+    datos.pantallas.forEach((p) => { necesarias.add(p.captura); p.nodos.forEach(recorrer); });
+    const imagenes = {};
+    for (const ruta of necesarias) {
+      if (!archivos[ruta]) { escribir('Falta la imagen ' + ruta, true); continue; }
+      imagenes[ruta] = new Uint8Array(await archivos[ruta].arrayBuffer());
+    }
+    parent.postMessage({ pluginMessage: {
+      tipo: 'importar', datos, imagenes,
+      prototipo: document.getElementById('prototipo').checked,
+      referencia: document.getElementById('referencia').checked
+    } }, '*');
+  });
+
+  onmessage = (e) => {
+    const m = e.data.pluginMessage;
+    if (!m) return;
+    escribir(m.texto, m.error);
+    if (m.fin) boton.disabled = false;
+  };
+</script>
+</body>
+</html>

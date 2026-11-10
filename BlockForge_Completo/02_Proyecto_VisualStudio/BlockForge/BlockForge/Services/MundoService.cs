@@ -133,14 +133,22 @@ namespace BlockForge.Services
             mundos.Eliminar(idMundo);
         }
 
+        /// <summary>
+        /// Lista fija que sustituye a la base de datos al exportar las pantallas a Figma
+        /// (BlockForge.exe --exportar-figma). En el uso normal es null.
+        /// </summary>
+        internal static List<ResumenMundo> DatosDemostracion { get; set; }
+
         public List<ResumenMundo> ListarMisMundos()
         {
+            if (DatosDemostracion != null) return new List<ResumenMundo>(DatosDemostracion);
             return mundos.ListarPorUsuario(Sesion.UsuarioActual.IdUsuario);
         }
 
         public List<ResumenMundo> ListarTodos(string filtro)
         {
             VerificarAdministrador();
+            if (DatosDemostracion != null) return new List<ResumenMundo>(DatosDemostracion);
             return mundos.ListarTodos(filtro);
         }
 

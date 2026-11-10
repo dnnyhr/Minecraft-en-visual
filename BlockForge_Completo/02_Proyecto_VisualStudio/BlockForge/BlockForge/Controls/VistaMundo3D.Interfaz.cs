@@ -359,6 +359,21 @@ namespace BlockForge.Controls
             if (!char.IsControl(c) && entradaChat.Length < 100) entradaChat.Append(c);
         }
 
+        /// <summary>Exportación a Figma: la vista conserva su estado aunque la ventana no tenga el foco y no lee el mouse.</summary>
+        private bool capturaFija;
+
+        /// <summary>
+        /// Deja la vista en un estado concreto para exportar las pantallas a Figma, sin tocar el cursor:
+        /// "juego" (como al hacer clic para jugar), "pausa" (menú de pausa) o "inventario" (tecla E).
+        /// </summary>
+        internal void PrepararCaptura(string estado)
+        {
+            capturaFija = true;
+            inventarioAbierto = estado == "inventario";
+            capturado = estado == "juego";
+            tiempoAviso = 0;
+        }
+
         // ------------------------------------------------------------------ inventario visual
         private void AbrirInventario()
         {

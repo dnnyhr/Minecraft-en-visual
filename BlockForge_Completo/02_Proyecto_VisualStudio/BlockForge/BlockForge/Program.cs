@@ -11,13 +11,21 @@ namespace BlockForge
     {
         /// <summary>Punto de entrada de la aplicación.</summary>
         [STAThread]
-        private static void Main()
+        private static void Main(string[] args)
         {
 #if !MONO
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
 #endif
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // BlockForge.exe --exportar-figma [carpeta]: exporta las pantallas reales para el plugin de Figma
+            // (carpeta 06_Figma del proyecto). Usa datos de demostración y no abre la base de datos.
+            if (Herramientas.ExportadorFigma.Solicitado(args))
+            {
+                Herramientas.ExportadorFigma.Ejecutar(args);
+                return;
+            }
 
             try
             {

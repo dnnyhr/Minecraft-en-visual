@@ -380,11 +380,11 @@ namespace BlockForge.Controls
         private void Actualizar(float dt)
         {
             Form formulario = FindForm();
-            bool activo = capturado && formulario != null && formulario.ContainsFocus && Form.ActiveForm == formulario;
+            bool activo = capturaFija || (capturado && formulario != null && formulario.ContainsFocus && Form.ActiveForm == formulario);
             if (capturado && !activo) LiberarMouse();
 
-            bool controlando = capturado && !chatAbierto && !vida.Muerto;
-            if (capturado)
+            bool controlando = capturado && !chatAbierto && !vida.Muerto && !capturaFija;
+            if (capturado && !capturaFija)
             {
                 Point centro = PointToScreen(new Point(ClientSize.Width / 2, ClientSize.Height / 2));
                 Point actual = Cursor.Position;
@@ -615,6 +615,7 @@ namespace BlockForge.Controls
         /// <summary>Devuelve el cursor al sistema (pausa), por ejemplo al abrir un diálogo.</summary>
         public void LiberarMouse()
         {
+            if (capturaFija) return;
             capturado = false;
             botonIzquierdo = botonDerecho = false;
             Cursor.Clip = Rectangle.Empty;
